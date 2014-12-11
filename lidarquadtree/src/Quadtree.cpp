@@ -392,6 +392,8 @@ bool Quadtree::removeInstanceDir(string target)
 
             entry = readdir(openD);
          }
+         
+         free(openD);
 
          // then delete directory
          return ( rmdir(target.c_str()) == -1 );
