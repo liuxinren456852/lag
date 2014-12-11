@@ -85,6 +85,10 @@ AdvancedOptionsWindow::~AdvancedOptionsWindow()
    delete maindetailselectprof;
    delete previewdetailselectprof;
    delete advancedoptionsdialog;
+   delete fractionalshiftcheck;
+   delete movespeedselect;
+   delete profdisplaynoise;
+   delete tdodisplaynoise;
 }
 
 /*

@@ -271,6 +271,7 @@ int main(int argc, char** argv)
 	delete overviewwindow;
 	delete profilewindow;
 	delete ald;
+	delete rulerlabel;
 	if (tdo != NULL)
 		delete tdo;
 	if (prof != NULL)

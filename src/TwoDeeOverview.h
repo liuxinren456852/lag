@@ -71,6 +71,9 @@ public:
 
    //Draw the viewable part of the image.
    bool drawviewable(int imagetype);
+   
+   //Gets the coordinates of the fence (x1, y1, x2, y2)
+   std::tuple<double, double, double, double> get_fence_coordinates();
 
    void toggleNoise(); 
 

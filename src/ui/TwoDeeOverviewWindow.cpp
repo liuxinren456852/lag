@@ -118,6 +118,7 @@ TwoDeeOverviewWindow::~TwoDeeOverviewWindow()
 
    delete returnbutton;
    delete advancedbutton;
+   delete outputfencebutton;
 
    delete superzoombutton;
    delete refreshbutton;
@@ -137,42 +138,43 @@ TwoDeeOverviewWindow::~TwoDeeOverviewWindow()
 */
 void TwoDeeOverviewWindow::load_xml(const Glib::RefPtr<Gtk::Builder>& builder)
 {
-    builder->get_widget("saveasfilemenuitem",	 	saveasfilemenuitem);
-    builder->get_widget("quitfilemenuitem",	 		quitfilemenuitem);
-    builder->get_widget("showdistancescalecheck",	showdistancescalecheck);
-    builder->get_widget("showlegendcheck",	 		showlegendcheck);
-    builder->get_widget("reverseheightcheck", 		reverseheightcheck);
-    builder->get_widget("colourbynonemenu", 		colourbynonemenu);
-    builder->get_widget("colourbyintensitymenu", 	colourbyintensitymenu);
-    builder->get_widget("colourbyheightmenu",	 	colourbyheightmenu);
-    builder->get_widget("colourbyflightlinemenu", 	colourbyflightlinemenu);
+    builder->get_widget("saveasfilemenuitem",	 	  saveasfilemenuitem);
+    builder->get_widget("quitfilemenuitem",	 		  quitfilemenuitem);
+    builder->get_widget("showdistancescalecheck",	  showdistancescalecheck);
+    builder->get_widget("showlegendcheck",	 		  showlegendcheck);
+    builder->get_widget("reverseheightcheck", 		  reverseheightcheck);
+    builder->get_widget("colourbynonemenu", 		  colourbynonemenu);
+    builder->get_widget("colourbyintensitymenu", 	  colourbyintensitymenu);
+    builder->get_widget("colourbyheightmenu",	 	  colourbyheightmenu);
+    builder->get_widget("colourbyflightlinemenu", 	  colourbyflightlinemenu);
     builder->get_widget("colourbyclassificationmenu", colourbyclassificationmenu);
-    builder->get_widget("colourbyreturnmenu", 		colourbyreturnmenu);
-    builder->get_widget("brightnessbynonemenu", 	brightnessbynonemenu);
-    builder->get_widget("brightnessbyintensitymenu", brightnessbyintensitymenu);
-    builder->get_widget("brightnessbyheightmenu", 	brightnessbyheightmenu);
-    builder->get_widget("helpmenu", 				helpmenu);
-    builder->get_widget("help", 					help);
-    builder->get_widget("aboutmenu", 				aboutmenu);
-    builder->get_widget("about", 					about);
-    builder->get_widget("returnbutton", 			returnbutton);
-    builder->get_widget("advancedbutton", 			advancedbutton);
-    builder->get_widget("pointwidthselect",		 	pointwidthselect);
-    builder->get_widget("rulertoggleover", 			rulertoggleover);
-    builder->get_widget("fencetoggle", 				fencetoggle);
-    builder->get_widget("profiletoggle", 			profiletoggle);
-    builder->get_widget("slantedrectshapetoggle",	slantedrectshapetoggle);
-    builder->get_widget("slantwidthselect", 		slantwidthselect);
-    builder->get_widget("raiselinecheckmenu",		raiselinecheckmenu);
-    builder->get_widget("raiselineselect", 			raiselineselect);
-    builder->get_widget("superzoombutton",			superzoombutton);
-    builder->get_widget("refreshbutton",			refreshbutton);
-    builder->get_widget("saveasbutton", 			saveasbutton);
-    builder->get_widget("slicebutton", 				slicebutton);
-    builder->get_widget("zminselect", 				zminselect);
-    builder->get_widget("zmaxselect",  				zmaxselect);
-    builder->get_widget("quadtreemenu",				quadtreemenu);
-    builder->get_widget("uselatlongcheck",			uselatlongcheck);
+    builder->get_widget("colourbyreturnmenu", 		  colourbyreturnmenu);
+    builder->get_widget("brightnessbynonemenu", 	  brightnessbynonemenu);
+    builder->get_widget("brightnessbyintensitymenu",  brightnessbyintensitymenu);
+    builder->get_widget("brightnessbyheightmenu", 	  brightnessbyheightmenu);
+    builder->get_widget("helpmenu", 				  helpmenu);
+    builder->get_widget("help", 					  help);
+    builder->get_widget("aboutmenu", 				  aboutmenu);
+    builder->get_widget("about", 					  about);
+    builder->get_widget("returnbutton", 			  returnbutton);
+    builder->get_widget("advancedbutton", 			  advancedbutton);
+    builder->get_widget("outputfencebutton", 	      outputfencebutton);
+    builder->get_widget("pointwidthselect",		 	  pointwidthselect);
+    builder->get_widget("rulertoggleover", 			  rulertoggleover);
+    builder->get_widget("fencetoggle", 				  fencetoggle);
+    builder->get_widget("profiletoggle", 			  profiletoggle);
+    builder->get_widget("slantedrectshapetoggle",	  slantedrectshapetoggle);
+    builder->get_widget("slantwidthselect", 		  slantwidthselect);
+    builder->get_widget("raiselinecheckmenu",		  raiselinecheckmenu);
+    builder->get_widget("raiselineselect", 			  raiselineselect);
+    builder->get_widget("superzoombutton",			  superzoombutton);
+    builder->get_widget("refreshbutton",			  refreshbutton);
+    builder->get_widget("saveasbutton", 			  saveasbutton);
+    builder->get_widget("slicebutton", 				  slicebutton);
+    builder->get_widget("zminselect", 				  zminselect);
+    builder->get_widget("zmaxselect",  				  zmaxselect);
+    builder->get_widget("quadtreemenu",				  quadtreemenu);
+    builder->get_widget("uselatlongcheck",			  uselatlongcheck);
 }
 
 /*
@@ -221,6 +223,7 @@ void TwoDeeOverviewWindow::connect_signals()
     zminselect->signal_value_changed().connect(sigc::mem_fun(this, &TwoDeeOverviewWindow::on_zminvaluechanged));
     zmaxselect->signal_value_changed().connect(sigc::mem_fun(this, &TwoDeeOverviewWindow::on_zmaxvaluechanged));
     uselatlongcheck->signal_activate().connect(sigc::mem_fun(this, &TwoDeeOverviewWindow::on_uselatlongcheck));
+    outputfencebutton->signal_clicked().connect(sigc::mem_fun(this, &TwoDeeOverviewWindow::on_outputfencebutton));
 }
 
 /*
@@ -915,6 +918,24 @@ void TwoDeeOverviewWindow::on_raiselinecheckmenu()
    tdo->setraiseline(raiselinecheckmenu->get_active());
    if(tdo->is_realized())
       tdo->drawviewable(1);
+}
+
+/*
+==================================
+ TwoDeeOverviewWindow::on_outputfencebutton
+
+ Outputs the fence details so they can be used
+==================================
+*/
+void TwoDeeOverviewWindow::on_outputfencebutton()
+{
+   std::tuple<double, double, double, double> fence_coord = tdo->get_fence_coordinates();
+   double fence_x1 = std::get<0>(fence_coord);
+   double fence_y1 = std::get<1>(fence_coord);
+   double fence_x2 = std::get<2>(fence_coord);
+   double fence_y2 = std::get<3>(fence_coord);
+   
+   std::cout << "F " << fence_x1 << " " << fence_y1 << " " << fence_x2 << " " << fence_y2 << std::endl;
 }
 
 /*

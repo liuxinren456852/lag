@@ -31,6 +31,7 @@
 
 #include <gtkmm.h>
 #include <vector>
+#include <tuple>
 #include "Colour.h"
 #include "Point.h"
 #include "SelectionBox.h"
@@ -61,7 +62,10 @@ public:
 
    //Defines the end point.
    void on_(Point, double areawidth,double areaheight);
-
+   
+   //Gets the coordinates of the fence (x1, y1, x2, y2)
+   std::tuple<double, double, double, double> get_fence_coordinates();
+   
    // Moves the box using keyboard input, with different methods depending 
    // on slantedness and directionality.
    bool on_key(GdkEventKey* event,double scrollspeed,bool fractionalshift);

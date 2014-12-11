@@ -295,6 +295,18 @@ void BoxOverlay::drawinfo()
 
 /*
 ==================================
+ BoxOverlay::get_fence_coordinates
+
+ Returns the fence coordinates
+==================================
+*/
+std::tuple<double, double, double, double> BoxOverlay::get_fence_coordinates()
+{
+	return std::make_tuple(start.getX(), start.getY(), end.getX(), end.getY());
+}
+
+/*
+==================================
  BoxOverlay::makebox
 
  This makes the box with one line of it possibly in a different colour to

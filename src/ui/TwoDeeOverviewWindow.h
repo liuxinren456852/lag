@@ -168,6 +168,7 @@ private:
 
    Gtk::ToolButton* returnbutton;
    Gtk::ToolButton* advancedbutton;
+   Gtk::ToolButton* outputfencebutton;
 
    Gtk::ToolButton* refreshbutton;
    void on_refreshbuttonclicked();
@@ -178,7 +179,6 @@ private:
    Gtk::ToggleToolButton* slicebutton;
    Gtk::SpinButton* zminselect;
    Gtk::SpinButton* zmaxselect;
-
 
    Gtk::ToggleToolButton* superzoombutton;
    void on_superzoomclicked();
@@ -273,6 +273,9 @@ private:
 
    //Updates whether any line is to be raised and redraws.
    void on_raiselinecheckmenu();
+   
+   //Outputs fence info to file
+   void on_outputfencebutton();
 
    //Slicing
    void on_slicebuttontoggled();

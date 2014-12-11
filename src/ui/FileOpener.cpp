@@ -114,6 +114,14 @@ FileOpener::~FileOpener()
    delete filechooserdialog;
 
    delete tdo->getPointBucketMutex();
+
+   delete openfilemenuitem;
+   delete resbaseselect;
+   delete resdepthselect;
+   delete loadadvancedbutton;
+   //delete loadadvanceddialog;
+   delete loadadvancedcancel;
+   delete cache_folder_select;
 }
 
 /*
@@ -123,35 +131,35 @@ FileOpener::~FileOpener()
 */
 void FileOpener::load_xml(const Glib::RefPtr<Gtk::Builder>& builder)
 {
-	builder->get_widget("openfilemenuitem",openfilemenuitem);
-	builder->get_widget("filechooserdialog",filechooserdialog);
-	builder->get_widget("pointskipselect",pointskipselect);
-	builder->get_widget("fenceusecheck",fenceusecheck);
-	builder->get_widget("asciicodeentry",asciicodeentry);
-	builder->get_widget("cachesizeselect",cachesizeselect);
-	builder->get_widget("scaleFactorEntryX", scaleFactorEntryX);
-	builder->get_widget("scaleFactorEntryY", scaleFactorEntryY);
-	builder->get_widget("scaleFactorEntryZ", scaleFactorEntryZ);
-	builder->get_widget("btnUseDefault", btnUseDefault);
-	builder->get_widget("cachesizeGBlabel",cachesizeGBlabel);
-	builder->get_widget("loadoutputlabel",loadoutputlabel);
-	builder->get_widget("resbaseselect",resbaseselect);
-	builder->get_widget("resdepthselect",resdepthselect);
-	builder->get_widget("openbutton",openbutton);
-
-	// Progress dialog
-	builder->get_widget("loaddialog",loaddialog);
-	builder->get_widget("filelabel",filelabel);
-	builder->get_widget("fileprogressbar",fileprogressbar);
-	builder->get_widget("totallabel",totallabel);
-	builder->get_widget("totalprogressbar",totalprogressbar);
-	builder->get_widget("loadcancelbutton",loadcancelbutton);
-
-	// Advanced dialog
-	builder->get_widget("loadadvancedbutton",loadadvancedbutton);
-	builder->get_widget("loadadvanceddialog",loadadvanceddialog);
-	builder->get_widget("loadadvancedcancel",loadadvancedcancel);
-	builder->get_widget("cachefolderselect",cache_folder_select);
+	builder->get_widget("openfilemenuitem",   openfilemenuitem);
+	builder->get_widget("filechooserdialog",  filechooserdialog);
+	builder->get_widget("pointskipselect",    pointskipselect);
+	builder->get_widget("fenceusecheck",      fenceusecheck);
+	builder->get_widget("asciicodeentry",     asciicodeentry);
+	builder->get_widget("cachesizeselect",    cachesizeselect);
+	builder->get_widget("scaleFactorEntryX",  scaleFactorEntryX);
+	builder->get_widget("scaleFactorEntryY",  scaleFactorEntryY);
+	builder->get_widget("scaleFactorEntryZ",  scaleFactorEntryZ);
+	builder->get_widget("btnUseDefault",      btnUseDefault);
+	builder->get_widget("cachesizeGBlabel",   cachesizeGBlabel);
+	builder->get_widget("loadoutputlabel",    loadoutputlabel);
+	builder->get_widget("resbaseselect",      resbaseselect);
+	builder->get_widget("resdepthselect",     resdepthselect);
+	builder->get_widget("openbutton",         openbutton);
+                                              
+	// Progress dialog                        
+	builder->get_widget("loaddialog",         loaddialog);
+	builder->get_widget("filelabel",          filelabel);
+	builder->get_widget("fileprogressbar",    fileprogressbar);
+	builder->get_widget("totallabel",         totallabel);
+	builder->get_widget("totalprogressbar",   totalprogressbar);
+	builder->get_widget("loadcancelbutton",   loadcancelbutton);
+                                              
+	// Advanced dialog                        
+	builder->get_widget("loadadvancedbutton", loadadvancedbutton);
+	builder->get_widget("loadadvanceddialog", loadadvanceddialog);
+	builder->get_widget("loadadvancedcancel", loadadvancedcancel);
+	builder->get_widget("cachefolderselect",  cache_folder_select);
 
    // Defaults
    filechooserdialog->set_current_folder(".");

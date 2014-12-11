@@ -102,6 +102,11 @@ ProfileWindow::~ProfileWindow()
    delete heightsbuttonprof;
    delete profstatuslabel;
    delete heightsexcludenoise;
+   delete colourbynonemenuprof;
+   delete brightnessbynonemenuprof;
+   delete returnbuttonprof;
+   delete showprofilebutton;
+   delete classbutton;
 }
 
 /*

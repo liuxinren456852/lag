@@ -93,6 +93,12 @@ AdvancedLoadDialog::~AdvancedLoadDialog()
 	delete gps_time_from;
 	delete gps_time_to;
 
+	delete return_drop_btn;
+	delete intensity_drop_btn;
+	delete classification_drop_btn;
+	delete gps_time_drop_btn;
+	delete ok_btn;
+	
 	delete advanced_load_dialog;
 }
 
@@ -103,56 +109,56 @@ AdvancedLoadDialog::~AdvancedLoadDialog()
 */
 void AdvancedLoadDialog::load_xml(const Glib::RefPtr<Gtk::Builder>& builder)
 {
-	builder->get_widget("loadadvanceddialog", advanced_load_dialog);
+	builder->get_widget("loadadvanceddialog",    advanced_load_dialog);
 
-	builder->get_widget("insiderectanglecb", inside_rectangle_cb);
-	builder->get_widget("insiderectangleminx", inside_rectangle_min_x);
-	builder->get_widget("insiderectangleminy", inside_rectangle_min_y);
-	builder->get_widget("insiderectanglemaxx", inside_rectangle_max_x);
-	builder->get_widget("insiderectanglemaxy", inside_rectangle_max_y);
+	builder->get_widget("insiderectanglecb",     inside_rectangle_cb);
+	builder->get_widget("insiderectangleminx",   inside_rectangle_min_x);
+	builder->get_widget("insiderectangleminy",   inside_rectangle_min_y);
+	builder->get_widget("insiderectanglemaxx",   inside_rectangle_max_x);
+	builder->get_widget("insiderectanglemaxy",   inside_rectangle_max_y);
 
-	builder->get_widget("insideboxcb", inside_box_cb);
-	builder->get_widget("insideboxminx", inside_box_min_x);
-	builder->get_widget("insideboxminy", inside_box_min_y);
-	builder->get_widget("insideboxminz", inside_box_min_z);
-	builder->get_widget("insideboxmaxx", inside_box_max_x);
-	builder->get_widget("insideboxmaxy", inside_box_max_y);
-	builder->get_widget("insideboxmaxz", inside_box_max_z);
+	builder->get_widget("insideboxcb",           inside_box_cb);
+	builder->get_widget("insideboxminx",         inside_box_min_x);
+	builder->get_widget("insideboxminy",         inside_box_min_y);
+	builder->get_widget("insideboxminz",         inside_box_min_z);
+	builder->get_widget("insideboxmaxx",         inside_box_max_x);
+	builder->get_widget("insideboxmaxy",         inside_box_max_y);
+	builder->get_widget("insideboxmaxz",         inside_box_max_z);
 
-	builder->get_widget("insidecirclecb", inside_circle_cb);
-	builder->get_widget("insidecirclex", inside_circle_x);
-	builder->get_widget("insidecircley", inside_circle_y);
-	builder->get_widget("insidecircleradius", inside_circle_radius);
+	builder->get_widget("insidecirclecb",        inside_circle_cb);
+	builder->get_widget("insidecirclex",         inside_circle_x);
+	builder->get_widget("insidecircley",         inside_circle_y);
+	builder->get_widget("insidecircleradius",    inside_circle_radius);
 
-	builder->get_widget("clipxcb", clip_x_cb);
-	builder->get_widget("clipxabove", clip_x_above);
-	builder->get_widget("clipxbelow", clip_x_below);
-	builder->get_widget("clipycb", clip_y_cb);
-	builder->get_widget("clipyabove", clip_y_above);
-	builder->get_widget("clipybelow", clip_y_below);
-	builder->get_widget("clipzcb", clip_z_cb);
-	builder->get_widget("clipzabove", clip_z_above);
-	builder->get_widget("clipzbelow", clip_z_below);
+	builder->get_widget("clipxcb",               clip_x_cb);
+	builder->get_widget("clipxabove",            clip_x_above);
+	builder->get_widget("clipxbelow",            clip_x_below);
+	builder->get_widget("clipycb",               clip_y_cb);
+	builder->get_widget("clipyabove",            clip_y_above);
+	builder->get_widget("clipybelow",            clip_y_below);
+	builder->get_widget("clipzcb",               clip_z_cb);
+	builder->get_widget("clipzabove",            clip_z_above);
+	builder->get_widget("clipzbelow",            clip_z_below);
 
-	builder->get_widget("returncb", return_cb);
-	builder->get_widget("returnentry", return_entry);
-	builder->get_widget("returndropbtn", return_drop_btn);
+	builder->get_widget("returncb",              return_cb);
+	builder->get_widget("returnentry",           return_entry);
+	builder->get_widget("returndropbtn",         return_drop_btn);
 
-	builder->get_widget("intensitycb", intensity_cb);
-	builder->get_widget("intensityfrom", intensity_from);
-	builder->get_widget("intensityto", intensity_to);
-	builder->get_widget("intensitydropbtn", intensity_drop_btn);
+	builder->get_widget("intensitycb",           intensity_cb);
+	builder->get_widget("intensityfrom",         intensity_from);
+	builder->get_widget("intensityto",           intensity_to);
+	builder->get_widget("intensitydropbtn",      intensity_drop_btn);
 
-	builder->get_widget("classificationcb", classification_cb);
-	builder->get_widget("classificationentry", classification_entry);
+	builder->get_widget("classificationcb",      classification_cb);
+	builder->get_widget("classificationentry",   classification_entry);
 	builder->get_widget("classificationdropbtn", classification_drop_btn);
 
-	builder->get_widget("gpstimecb", gps_time_cb);
-	builder->get_widget("gpstimefrom", gps_time_from);
-	builder->get_widget("gpstimeto", gps_time_to);
-	builder->get_widget("gpstimedropbtn", gps_time_drop_btn);
+	builder->get_widget("gpstimecb",             gps_time_cb);
+	builder->get_widget("gpstimefrom",           gps_time_from);
+	builder->get_widget("gpstimeto",             gps_time_to);
+	builder->get_widget("gpstimedropbtn",        gps_time_drop_btn);
 
-	builder->get_widget("loadadvancedok", ok_btn);
+	builder->get_widget("loadadvancedok",        ok_btn);
 }
 
 /*

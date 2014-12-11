@@ -177,8 +177,9 @@ TwoDeeOverview::~TwoDeeOverview()
    delete[] vertices;
    delete[] colours;
 
-	delete fencebox;
-	delete profbox;
+   delete fencebox;
+   delete profbox;
+   delete pointinfobox;
 }
 
 /*
@@ -2005,6 +2006,18 @@ bool TwoDeeOverview::on_fence_key(GdkEventKey* event,double scrollspeed)
 
    fencebox->makeboundaries();
    return drawviewable(2);
+}
+
+/*
+==================================
+ TwoDeeOverview::get_fence_coordinates
+
+ Moves the fence depending on keyboard commands.
+==================================
+*/
+std::tuple<double, double, double, double> TwoDeeOverview::get_fence_coordinates()
+{
+    return fencebox->get_fence_coordinates();
 }
 
 /*
