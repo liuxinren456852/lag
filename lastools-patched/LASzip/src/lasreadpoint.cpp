@@ -13,7 +13,7 @@
 
   COPYRIGHT:
 
-    (c) 2007-2012, martin isenburg, rapidlasso - tools to catch reality
+    (c) 2007-2014, martin isenburg, rapidlasso - fast tools to catch reality
 
     This is free software; you can redistribute and/or modify it under the
     terms of the GNU Lesser General Licence as published by the Free Software
@@ -36,6 +36,7 @@
 #include "lasreaditemcompressed_v1.hpp"
 #include "lasreaditemcompressed_v2.hpp"
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -59,6 +60,8 @@ LASreadPoint::LASreadPoint()
   // used for seeking
   point_start = 0;
   seek_point = 0;
+  // used for error reporting
+  last_error = 0;
 }
 
 BOOL LASreadPoint::setup(U32 num_items, const LASitem* items, const LASzip* laszip)
@@ -219,19 +222,6 @@ BOOL LASreadPoint::init(ByteStreamIn* instream)
   if (!instream) return FALSE;
   this->instream = instream;
 
-  // on very first init with chunking enabled
-  if (number_chunks == U32_MAX)
-  {
-    if (!read_chunk_table())
-    {
-      return FALSE;
-    }
-    current_chunk = 0;
-    if (chunk_totals) chunk_size = chunk_totals[1];
-  }
-
-  point_start = instream->tell();
-
   U32 i;
   for (i = 0; i < num_readers; i++)
   {
@@ -240,10 +230,13 @@ BOOL LASreadPoint::init(ByteStreamIn* instream)
 
   if (dec)
   {
+    chunk_count = chunk_size;
+    point_start = 0;
     readers = 0;
   }
   else
   {
+    point_start = instream->tell();
     readers = readers_raw;
   }
 
@@ -256,6 +249,11 @@ BOOL LASreadPoint::seek(const U32 current, const U32 target)
   U32 delta = 0;
   if (dec)
   {
+    if (point_start == 0)
+    {
+      init_dec();
+      chunk_count = 0;
+    }
     if (chunk_starts)
     {
       U32 target_chunk;
@@ -277,7 +275,7 @@ BOOL LASreadPoint::seek(const U32 current, const U32 target)
           dec->done();
           current_chunk = (tabled_chunks-1);
           instream->seek(chunk_starts[current_chunk]);
-          init(instream);
+          init_dec();
           chunk_count = 0;
         }
         delta += (chunk_size*(target_chunk-current_chunk) - chunk_count);
@@ -287,7 +285,7 @@ BOOL LASreadPoint::seek(const U32 current, const U32 target)
         dec->done();
         current_chunk = target_chunk;
         instream->seek(chunk_starts[current_chunk]);
-        init(instream);
+        init_dec();
         chunk_count = 0;
       }
       else
@@ -299,7 +297,7 @@ BOOL LASreadPoint::seek(const U32 current, const U32 target)
     {
       dec->done();
       instream->seek(point_start);
-      init(instream);
+      init_dec();
       delta = target;
     }
     else if (current < target)
@@ -332,15 +330,29 @@ BOOL LASreadPoint::read(U8* const * point)
     {
       if (chunk_count == chunk_size)
       {
-        current_chunk++;
-        dec->done();
-        init(instream);
-        if (tabled_chunks == current_chunk) // no or incomplete chunk table?
+        if (point_start != 0)
+        {
+          dec->done();
+          current_chunk++;
+          // check integrity
+          if (current_chunk < tabled_chunks)
+          {
+            I64 here = instream->tell();
+            if (chunk_starts[current_chunk] != here)
+            {
+              // previous chunk was corrupt
+              current_chunk--;
+              throw 4711;
+            }
+          }
+        }
+        init_dec();
+        if (current_chunk == tabled_chunks) // no or incomplete chunk table?
         {
           if (current_chunk == number_chunks)
           {
             number_chunks += 256;
-            chunk_starts = (I64*)realloc(chunk_starts, sizeof(I64)*number_chunks);
+            chunk_starts = (I64*)realloc(chunk_starts, sizeof(I64)*(number_chunks+1));
           }
           chunk_starts[tabled_chunks] = point_start; // needs fixing
           tabled_chunks++;
@@ -379,8 +391,36 @@ BOOL LASreadPoint::read(U8* const * point)
       }
     }
   }
-  catch (...)
+  catch (I32 exception) 
   {
+    // create error string
+    if (last_error == 0) last_error = new CHAR[128];
+    // report error
+    if (exception == EOF)
+    {
+      // end-of-file
+      if (dec)
+      {
+        sprintf(last_error, "end-of-file during chunk %u", current_chunk);
+      }
+      else
+      {
+        sprintf(last_error, "end-of-file");
+      }
+    }
+    else
+    {
+      // decompression error
+      sprintf(last_error, "chunk %u of %u is corrupt", current_chunk, tabled_chunks);
+      // if we know where the next chunk starts ...
+      if ((current_chunk+1) < tabled_chunks)
+      {
+        // ... try to seek to the next chunk
+        instream->seek(chunk_starts[(current_chunk+1)]);
+        // ... ready for next LASreadPoint::read()
+        chunk_count = chunk_size;
+      }
+    }
     return FALSE;
   }
   return TRUE;
@@ -392,6 +432,27 @@ BOOL LASreadPoint::done()
   {
     if (dec) dec->done();
   }
+  instream = 0;
+  return TRUE;
+}
+
+BOOL LASreadPoint::init_dec()
+{
+  // maybe read chunk table (only if chunking enabled)
+
+  if (number_chunks == U32_MAX)
+  {
+    if (!read_chunk_table())
+    {
+      return FALSE;
+    }
+    current_chunk = 0;
+    if (chunk_totals) chunk_size = chunk_totals[1];
+  }
+
+  point_start = instream->tell();
+  readers = 0;
+
   return TRUE;
 }
 
@@ -407,11 +468,17 @@ BOOL LASreadPoint::read_chunk_table()
   // this is where the chunks start
   I64 chunks_start = instream->tell();
 
+  // was compressor interrupted before getting a chance to write the chunk table?
   if ((chunk_table_start_position + 8) == chunks_start)
   {
-    // then compressor was interrupted before getting a chance to write the chunk table
+    // no choice but to fail if adaptive chunking was used
+    if (chunk_size == U32_MAX)
+    {
+      return FALSE;
+    }
+    // otherwise we build the chunk table as we read the file
     number_chunks = 256;
-    chunk_starts = (I64*)malloc(sizeof(I64)*number_chunks);
+    chunk_starts = (I64*)malloc(sizeof(I64)*(number_chunks+1));
     if (chunk_starts == 0)
     {
       return FALSE;
@@ -421,9 +488,15 @@ BOOL LASreadPoint::read_chunk_table()
     return TRUE;
   }
 
+  // maybe the stream is not seekable
   if (!instream->isSeekable())
   {
-    // if the stream is not seekable we cannot seek to the chunk table but won't need it anyways
+    // no choice but to fail if adaptive chunking was used
+    if (chunk_size == U32_MAX)
+    {
+      return FALSE;
+    }
+    // then we cannot seek to the chunk table but won't need it anyways
     number_chunks = U32_MAX-1;
     tabled_chunks = 0;
     return TRUE;
@@ -498,12 +571,17 @@ BOOL LASreadPoint::read_chunk_table()
     // something went wrong while reading the chunk table
     if (chunk_totals) delete [] chunk_totals;
     chunk_totals = 0;
+    // no choice but to fail if adaptive chunking was used
+    if (chunk_size == U32_MAX)
+    {
+      return FALSE;
+    }
     // did we not even read the number of chunks
     if (number_chunks == U32_MAX)
     {
       // then compressor was interrupted before getting a chance to write the chunk table
       number_chunks = 256;
-      chunk_starts = (I64*)malloc(sizeof(I64)*number_chunks);
+      chunk_starts = (I64*)malloc(sizeof(I64)*(number_chunks+1));
       if (chunk_starts == 0)
       {
         return FALSE;
@@ -573,4 +651,6 @@ LASreadPoint::~LASreadPoint()
     delete [] seek_point[0];
     delete [] seek_point;
   }
+
+  if (last_error) delete [] last_error;
 }

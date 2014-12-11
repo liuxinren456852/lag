@@ -18,25 +18,30 @@
     Converting between Transverse Mercator and latitude / longitude
     adapted from code written by Garrett Potts (gpotts@imagelinks.com)
 
+    Converting between ECEF (geocentric) and latitude / longitude
+    adapted from code written by Craig Larrimore (craig.larrimore@noaa.gov), B. Archinal, and C. Goad
+
   PROGRAMMERS:
   
     martin.isenburg@rapidlasso.com  -  http://rapidlasso.com
     chuck.gantz@globalstar.com
     gpotts@imagelinks.com
+    craig.larrimore@noaa.gov
   
   COPYRIGHT:
   
-    (c) 2007-2012, martin isenburg, rapidlasso - tools to catch reality
+    (c) 2007-2014, martin isenburg, rapidlasso - tools to catch reality
 
     This is free software; you can redistribute and/or modify it under the
     terms of the GNU Lesser General Licence as published by the Free Software
-    Foundation except for (R). See the LICENSE.txt file for more information.
+    Foundation. See the LICENSE.txt file for more information.
 
     This software is distributed WITHOUT ANY WARRANTY and without even the
     implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
   
   CHANGE HISTORY:
   
+    13 August 2014 -- added long overdue ECEF (geocentric) conversion
     08 February 2007 -- created after interviews with purdue and google
   
 ===============================================================================
@@ -59,7 +64,7 @@ struct GeoProjectionGeoKeys
 #define GEO_ELLIPSOID_WGS72 22
 #define GEO_ELLIPSOID_WGS84 23
 #define GEO_ELLIPSOID_ID74  24
-#define GEO_ELLIPSOID_GDA94 GEO_ELLIPSOID_WGS84
+#define GEO_ELLIPSOID_GDA94 GEO_ELLIPSOID_NAD83
 
 #define GEO_VERTICAL_WGS84   5030
 #define GEO_VERTICAL_NAVD29  5102
@@ -177,8 +182,11 @@ public:
   int get_ellipsoid_id() const;
   const char* get_ellipsoid_name() const;
 
+  bool set_no_projection(char* description=0, bool source=true);
   bool set_latlong_projection(char* description=0, bool source=true);
   bool set_longlat_projection(char* description=0, bool source=true);
+
+  bool set_ecef_projection(char* description, bool source=true);
 
   bool set_target_utm_projection(char* description);
   bool set_utm_projection(char* zone, char* description=0, bool source=true);
@@ -199,6 +207,11 @@ public:
   const char* get_state_plane_nad83_tm_zone(int i) const;
   bool set_state_plane_nad83_tm(const char* zone, char* description=0, bool source=true);
   void print_all_state_plane_nad83_tm() const;
+
+  const char* get_epsg_code_description(int i) const;
+  short get_epsg_code_value(int i) const;
+  bool set_epsg_code(short code, char* description=0, bool source=true);
+  void print_all_epsg_codes() const;
 
   void reset_projection(bool source=true);
   bool has_projection(bool source=true) const;
@@ -234,6 +247,9 @@ public:
   bool TMtoLL(const double TMEastingMeter, const double TMNorthingMeter, double& LatDegree,  double& LongDegree, const GeoProjectionEllipsoid* ellipsoid, const GeoProjectionParametersTM* tm) const;
   bool LLtoTM(const double LatDegree, const double LongDegree, double &TMEastingMeter, double &TMNorthingMeter, const GeoProjectionEllipsoid* ellipsoid, const GeoProjectionParametersTM* tm) const;
 
+  bool ECEFtoLL(const double ECEFMeterX, const double ECEFMeterY, const double ECEFMeterZ, double& LatDegree,  double& LongDegree, double& ElevationMeter, const GeoProjectionEllipsoid* ellipsoid) const;
+  bool LLtoECEF(const double LatDegree, const double LongDegree, const double ElevationMeter, double &ECEFMeterX, double &ECEFMeterY, double &ECEFMeterZ, const GeoProjectionEllipsoid* ellipsoid) const;
+
   GeoProjectionConverter();
   ~GeoProjectionConverter();
 
@@ -250,10 +266,14 @@ public:
   double get_target_precision() const;
   void set_target_precision(double target_precision);
 
+  double get_target_elevation_precision() const;
+  void set_target_elevation_precision(double target_elevation_precision);
+
   // for interfacing with common geo-spatial formats
 
 //  int get_img_projection_number(bool source=true) const;
   bool get_dtm_projection_parameters(short* horizontal_units, short* vertical_units, short* coordinate_system, short* coordinate_zone, short* horizontal_datum, short* vertical_datum, bool source=true);
+  bool set_dtm_projection_parameters(short horizontal_units, short vertical_units, short coordinate_system, short coordinate_zone, short horizontal_datum, short vertical_datum, bool source=true);
   
 private:
   // parameters for gtiff
@@ -280,6 +300,7 @@ private:
   float elevation_offset_in_meter;
 
   double target_precision;
+  double target_elevation_precision;
 
   // helper functions
   void set_projection(GeoProjectionParameters* projection, bool source);

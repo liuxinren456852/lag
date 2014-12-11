@@ -5,7 +5,7 @@
   
   CONTENTS:
   
-    Reads a binary BIL raster (*.asc) format as if it was a LiDAR point cloud.
+    Reads a binary BIL raster (*.bil + *.hdr) as if it was a LiDAR point cloud.
 
   PROGRAMMERS:
 
@@ -13,11 +13,11 @@
 
   COPYRIGHT:
 
-    (c) 2007-2012, martin isenburg, rapidlasso - tools to catch reality
+    (c) 2007-2014, martin isenburg, rapidlasso - fast tools to catch reality
 
     This is free software; you can redistribute and/or modify it under the
     terms of the GNU Lesser General Licence as published by the Free Software
-    Foundation except for (R). See the LICENSE.txt file for more information.
+    Foundation. See the LICENSE.txt file for more information.
 
     This software is distributed WITHOUT ANY WARRANTY and without even the
     implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.

@@ -1,20 +1,20 @@
 #
 # lasboundary.py
 #
-# (c) 2012, Martin Isenburg
-# LASSO - rapid tools to catch reality
+# (c) 2013, martin isenburg - http://rapidlasso.com
+#     rapidlasso GmbH - fast tools to catch reality
 #
-# uses lasboundary.exe to computes a boundary polygon for the
+# uses lasboundary.exe to compute a boundary polygon for the
 # points. This is a concave hull of the points with a "concavity"
 # defined by the user that is 50 m (or 150 ft) by default. It is
 # usually a single polygon where "islands of points" are connected
 # by edges that are traversed in each direction once, but the user
 # can chose to generate a disjoint set of polygons as well.
 #
-# The LiDAR input can be in LAS/LAZ/BIN/TXT/SHP/... format.
-# The polygonal output can be in SHP/TXT/WKT/KML format.
+# LiDAR input:   LAS/LAZ/BIN/TXT/SHP/BIL/ASC/DTM
+# vector output: SHP/WKT/KML/TXT
 #
-# for licensing details see http://rapidlasso.com/download/LICENSE.txt
+# for licensing see http://lastools.org/LICENSE.txt
 #
 
 import sys, os, arcgisscripting, subprocess
@@ -42,12 +42,22 @@ argc = len(sys.argv)
 #for i in range(0, argc):
 #    gp.AddMessage("[" + str(i) + "]" + sys.argv[i])
 
-### get the path to the LAStools binaries
-lastools_path = os.path.dirname(os.path.dirname(os.path.dirname(sys.argv[0])))+"\\bin"
+### get the path to LAStools
+lastools_path = os.path.dirname(os.path.dirname(os.path.dirname(sys.argv[0])))
+
+### make sure the path does not contain spaces
+if lastools_path.count(" ") > 0:
+    gp.AddMessage("Error. Path to .\\lastools installation contains spaces.")
+    gp.AddMessage("This does not work: " + lastools_path)
+    gp.AddMessage("This would work:    C:\\software\\lastools")
+    sys.exit(1)    
+
+### complete the path to where the LAStools executables are
+lastools_path = lastools_path + "\\bin"
 
 ### check if path exists
 if os.path.exists(lastools_path) == False:
-    gp.AddMessage("Cannot find .\lastools\bin at " + lastools_path)
+    gp.AddMessage("Cannot find .\\lastools\\bin at " + lastools_path)
     sys.exit(1)
 else:
     gp.AddMessage("Found " + lastools_path + " ...")
@@ -63,7 +73,7 @@ else:
     gp.AddMessage("Found " + lasboundary_path + " ...")
 
 ### create the command string for lasboundary.exe
-command = [lasboundary_path]
+command = ['"'+lasboundary_path+'"']
 
 ### maybe use '-verbose' option
 if sys.argv[argc-1] == "true":
@@ -71,12 +81,12 @@ if sys.argv[argc-1] == "true":
 
 ### add input LiDAR
 command.append("-i")
-command.append(sys.argv[1])
+command.append('"'+sys.argv[1]+'"')
 
 ### maybe use a user-specified concavity
 if sys.argv[2] != "50":
     command.append("-concavity")
-    command.append(sys.argv[2])
+    command.append(sys.argv[2].replace(",","."))
 
 ### what should we contour
 if sys.argv[3] == "ground points only":
@@ -118,24 +128,32 @@ if sys.argv[out] != "#":
 ### maybe an output file name was selected
 if sys.argv[out+1] != "#":
     command.append("-o")
-    command.append(sys.argv[out+1])
+    command.append('"'+sys.argv[out+1]+'"')
 
 ### maybe an output directory was selected
 if sys.argv[out+2] != "#":
     command.append("-odir")
-    command.append(sys.argv[out+2])
+    command.append('"'+sys.argv[out+2]+'"')
 
 ### maybe an output appendix was selected
 if sys.argv[out+3] != "#":
     command.append("-odix")
-    command.append(sys.argv[out+3])
+    command.append('"'+sys.argv[out+3]+'"')
+
+### maybe there are additional command-line options
+if sys.argv[out+4] != "#":
+    additional_options = sys.argv[out+4].split()
+    for option in additional_options:
+        command.append(option)
 
 ### report command string
 gp.AddMessage("LAStools command line:")
 command_length = len(command)
 command_string = str(command[0])
+command[0] = command[0].strip('"')
 for i in range(1, command_length):
     command_string = command_string + " " + str(command[i])
+    command[i] = command[i].strip('"')
 gp.AddMessage(command_string)
 
 ### run command

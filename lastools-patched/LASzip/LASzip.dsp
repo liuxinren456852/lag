@@ -193,14 +193,6 @@ SOURCE=.\src\bytestreamout_ostream.hpp
 # End Source File
 # Begin Source File
 
-SOURCE=.\src\entropydecoder.hpp
-# End Source File
-# Begin Source File
-
-SOURCE=.\src\entropyencoder.hpp
-# End Source File
-# Begin Source File
-
 SOURCE=.\src\integercompressor.hpp
 # End Source File
 # Begin Source File
@@ -246,6 +238,10 @@ SOURCE=.\src\laswritepoint.hpp
 # Begin Source File
 
 SOURCE=.\src\laszip.hpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\src\laszip_common_v1.hpp
 # End Source File
 # Begin Source File
 

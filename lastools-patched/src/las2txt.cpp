@@ -21,7 +21,7 @@
 
     This is free software; you can redistribute and/or modify it under the
     terms of the GNU Lesser General Licence as published by the Free Software
-    Foundation except for (R). See the LICENSE.txt file for more information.
+    Foundation. See the LICENSE.txt file for more information.
 
     This software is distributed WITHOUT ANY WARRANTY and without even the
     implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
@@ -33,7 +33,7 @@
     13 May 2011 -- moved indexing, filtering, transforming into LASreader
     15 March 2011 -- added the 'E' option to place an '-extra STRING' 
     26 January 2011 -- added the LAStransform to modify before output 
-     4 January 2011 -- added the LASfilter to clip or eliminate points 
+     4 January 2011 -- added the LASfilter to drop or keep points 
      1 January 2011 -- added LAS 1.3 waveforms while homesick for Livermore
      1 December 2010 -- support output of raw unscaled XYZ coordinates
     12 March 2009 -- updated to ask for input if started without arguments 
@@ -175,121 +175,128 @@ static void output_waveform(FILE* file_out, CHAR separator_sign, LASwaveform13re
   }
 }
 
-I32 extra_attribute_array_offsets[10];
+I32 attribute_starts[10];
 
-static BOOL print_extra_attribute(FILE* file, const LASheader* header, const LASpoint* point, I32 index, CHAR* printstring)
+static BOOL print_attribute(FILE* file, const LASheader* header, const LASpoint* point, I32 index, CHAR* printstring)
 {
-  if (index >= header->number_extra_attributes)
+  if (index >= header->number_attributes)
   {
     return FALSE;
   }
-  if (header->extra_attributes[index].data_type == 1)
+  if (header->attributes[index].data_type == 1)
   {
     U8 value;
-    point->get_extra_attribute(extra_attribute_array_offsets[index], value);
-    if (header->extra_attributes[index].has_scale() || header->extra_attributes[index].has_offset())
+    point->get_attribute(attribute_starts[index], value);
+    if (header->attributes[index].has_scale() || header->attributes[index].has_offset())
     {
-      F64 temp_d = header->extra_attributes[index].scale[0]*value + header->extra_attributes[index].offset[0];
-      lidardouble2string(printstring, temp_d, header->extra_attributes[index].scale[0]);
-      fprintf(file, "%s\012", printstring);
+      F64 temp_d = header->attributes[index].scale[0]*value + header->attributes[index].offset[0];
+      lidardouble2string(printstring, temp_d, header->attributes[index].scale[0]);
+      fprintf(file, "%s", printstring);
     }
     else
     {
       fprintf(file, "%d", (I32)value);
     }
   }
-  else if (header->extra_attributes[index].data_type == 2)
+  else if (header->attributes[index].data_type == 2)
   {
     I8 value;
-    point->get_extra_attribute(extra_attribute_array_offsets[index], value);
-    if (header->extra_attributes[index].has_scale() || header->extra_attributes[index].has_offset())
+    point->get_attribute(attribute_starts[index], value);
+    if (header->attributes[index].has_scale() || header->attributes[index].has_offset())
     {
-      F64 temp_d = header->extra_attributes[index].scale[0]*value + header->extra_attributes[index].offset[0];
-      fprintf(file, "%g", temp_d);
+      F64 temp_d = header->attributes[index].scale[0]*value + header->attributes[index].offset[0];
+      lidardouble2string(printstring, temp_d, header->attributes[index].scale[0]);
+      fprintf(file, "%s", printstring);
     }
     else
     {
       fprintf(file, "%d", (I32)value);
     }
   }
-  else if (header->extra_attributes[index].data_type == 3)
+  else if (header->attributes[index].data_type == 3)
   {
     U16 value;
-    point->get_extra_attribute(extra_attribute_array_offsets[index], value);
-    if (header->extra_attributes[index].has_scale() || header->extra_attributes[index].has_offset())
+    point->get_attribute(attribute_starts[index], value);
+    if (header->attributes[index].has_scale() || header->attributes[index].has_offset())
     {
-      F64 temp_d = header->extra_attributes[index].scale[0]*value + header->extra_attributes[index].offset[0];
-      fprintf(file, "%g", temp_d);
+      F64 temp_d = header->attributes[index].scale[0]*value + header->attributes[index].offset[0];
+      lidardouble2string(printstring, temp_d, header->attributes[index].scale[0]);
+      fprintf(file, "%s", printstring);
     }
     else
     {
       fprintf(file, "%d", (I32)value);
     }
   }
-  else if (header->extra_attributes[index].data_type == 4)
+  else if (header->attributes[index].data_type == 4)
   {
     I16 value;
-    point->get_extra_attribute(extra_attribute_array_offsets[index], value);
-    if (header->extra_attributes[index].has_scale() || header->extra_attributes[index].has_offset())
+    point->get_attribute(attribute_starts[index], value);
+    if (header->attributes[index].has_scale() || header->attributes[index].has_offset())
     {
-      F64 temp_d = header->extra_attributes[index].scale[0]*value + header->extra_attributes[index].offset[0];
-      fprintf(file, "%g", temp_d);
+      F64 temp_d = header->attributes[index].scale[0]*value + header->attributes[index].offset[0];
+      lidardouble2string(printstring, temp_d, header->attributes[index].scale[0]);
+      fprintf(file, "%s", printstring);
     }
     else
     {
       fprintf(file, "%d", (I32)value);
     }
   }
-  else if (header->extra_attributes[index].data_type == 5)
+  else if (header->attributes[index].data_type == 5)
   {
     U32 value;
-    point->get_extra_attribute(extra_attribute_array_offsets[index], value);
-    if (header->extra_attributes[index].has_scale() || header->extra_attributes[index].has_offset())
+    point->get_attribute(attribute_starts[index], value);
+    if (header->attributes[index].has_scale() || header->attributes[index].has_offset())
     {
-      F64 temp_d = header->extra_attributes[index].scale[0]*value + header->extra_attributes[index].offset[0];
-      fprintf(file, "%g", temp_d);
+      F64 temp_d = header->attributes[index].scale[0]*value + header->attributes[index].offset[0];
+      lidardouble2string(printstring, temp_d, header->attributes[index].scale[0]);
+      fprintf(file, "%s", printstring);
     }
     else
     {
       fprintf(file, "%d", (I32)value);
     }
   }
-  else if (header->extra_attributes[index].data_type == 6)
+  else if (header->attributes[index].data_type == 6)
   {
     I32 value;
-    point->get_extra_attribute(extra_attribute_array_offsets[index], value);
-    if (header->extra_attributes[index].has_scale() || header->extra_attributes[index].has_offset())
+    point->get_attribute(attribute_starts[index], value);
+    if (header->attributes[index].has_scale() || header->attributes[index].has_offset())
     {
-      F64 temp_d = header->extra_attributes[index].scale[0]*value + header->extra_attributes[index].offset[0];
-      fprintf(file, "%g", temp_d);
+      F64 temp_d = header->attributes[index].scale[0]*value + header->attributes[index].offset[0];
+      lidardouble2string(printstring, temp_d, header->attributes[index].scale[0]);
+      fprintf(file, "%s", printstring);
     }
     else
     {
       fprintf(file, "%d", value);
     }
   }
-  else if (header->extra_attributes[index].data_type == 9)
+  else if (header->attributes[index].data_type == 9)
   {
     F32 value;
-    point->get_extra_attribute(extra_attribute_array_offsets[index], value);
-    if (header->extra_attributes[index].has_scale() || header->extra_attributes[index].has_offset())
+    point->get_attribute(attribute_starts[index], value);
+    if (header->attributes[index].has_scale() || header->attributes[index].has_offset())
     {
-      F64 temp_d = header->extra_attributes[index].scale[0]*value + header->extra_attributes[index].offset[0];
-      fprintf(file, "%g", temp_d);
+      F64 temp_d = header->attributes[index].scale[0]*value + header->attributes[index].offset[0];
+      lidardouble2string(printstring, temp_d, header->attributes[index].scale[0]);
+      fprintf(file, "%s", printstring);
     }
     else
     {
       fprintf(file, "%g", value);
     }
   }
-  else if (header->extra_attributes[index].data_type == 10)
+  else if (header->attributes[index].data_type == 10)
   {
     F64 value;
-    point->get_extra_attribute(extra_attribute_array_offsets[index], value);
-    if (header->extra_attributes[index].has_scale() || header->extra_attributes[index].has_offset())
+    point->get_attribute(attribute_starts[index], value);
+    if (header->attributes[index].has_scale() || header->attributes[index].has_offset())
     {
-      F64 temp_d = header->extra_attributes[index].scale[0]*value + header->extra_attributes[index].offset[0];
-      fprintf(file, "%g", temp_d);
+      F64 temp_d = header->attributes[index].scale[0]*value + header->attributes[index].offset[0];
+      lidardouble2string(printstring, temp_d, header->attributes[index].scale[0]);
+      fprintf(file, "%s", printstring);
     }
     else
     {
@@ -298,7 +305,7 @@ static BOOL print_extra_attribute(FILE* file, const LASheader* header, const LAS
   }
   else
   {
-    fprintf(stderr, "WARNING: extra attribute %d not (yet) implemented.\n", index);
+    fprintf(stderr, "WARNING: attribute %d not (yet) implemented.\n", index);
     return FALSE;
   }
   return TRUE;
@@ -324,9 +331,11 @@ int main(int argc, char *argv[])
   bool diff = false;
   bool verbose = false;
   CHAR separator_sign = ' ';
+  CHAR* separator = "space";
   bool opts = false;
+  bool optx = false;
   CHAR header_comment_sign = '\0';
-  CHAR* parse_string = strdup("xyz");
+  CHAR* parse_string = 0;
   CHAR* extra_string = 0;
   CHAR printstring[512];
   double start_time = 0.0;
@@ -359,6 +368,11 @@ int main(int argc, char *argv[])
       if (strcmp(argv[i],"-opts") == 0)
       {
         opts = TRUE;
+        *argv[i]='\0';
+      }
+      else if (strcmp(argv[i],"-optx") == 0)
+      {
+        optx = TRUE;
         *argv[i]='\0';
       }
     }
@@ -408,6 +422,7 @@ int main(int argc, char *argv[])
       argv[i][0] = '\0';
 #else
       fprintf(stderr, "WARNING: not compiled with multi-core batching. ignoring '-cores' ...\n");
+      i++;
 #endif
     }
     else if (strcmp(argv[i],"-parse") == 0)
@@ -418,13 +433,13 @@ int main(int argc, char *argv[])
         usage(true);
       }
       i++;
-      free(parse_string);
+      if (parse_string) free(parse_string);
       parse_string = strdup(argv[i]);
     }
     else if (strcmp(argv[i],"-parse_all") == 0)
     {
-      free(parse_string);
-      parse_string = strdup("xyzirndecaupt");
+      if (parse_string) free(parse_string);
+      parse_string = strdup("txyzirndecaup");
     }
     else if (strcmp(argv[i],"-extra") == 0)
     {
@@ -444,37 +459,38 @@ int main(int argc, char *argv[])
         usage(true);
       }
       i++;
-      if (strcmp(argv[i],"comma") == 0 || strcmp(argv[i],"komma") == 0)
+      separator = argv[i];
+      if (strcmp(separator,"comma") == 0 || strcmp(separator,"komma") == 0)
       {
         separator_sign = ',';
       }
-      else if (strcmp(argv[i],"tab") == 0)
+      else if (strcmp(separator,"tab") == 0)
       {
         separator_sign = '\t';
       }
-      else if (strcmp(argv[i],"dot") == 0 || strcmp(argv[i],"period") == 0)
+      else if (strcmp(separator,"dot") == 0 || strcmp(separator,"period") == 0)
       {
         separator_sign = '.';
       }
-      else if (strcmp(argv[i],"colon") == 0)
+      else if (strcmp(separator,"colon") == 0)
       {
         separator_sign = ':';
       }
-      else if (strcmp(argv[i],"semicolon") == 0)
+      else if (strcmp(separator,"semicolon") == 0)
       {
         separator_sign = ';';
       }
-      else if (strcmp(argv[i],"hyphen") == 0 || strcmp(argv[i],"minus") == 0)
+      else if (strcmp(separator,"hyphen") == 0 || strcmp(separator,"minus") == 0)
       {
         separator_sign = '-';
       }
-      else if (strcmp(argv[i],"space") == 0)
+      else if (strcmp(separator,"space") == 0)
       {
         separator_sign = ' ';
       }
       else
       {
-        fprintf(stderr, "ERROR: unknown seperator '%s'\n",argv[i]);
+        fprintf(stderr, "ERROR: unknown seperator '%s'\n",separator);
         usage(true);
       }
     }
@@ -573,6 +589,188 @@ int main(int argc, char *argv[])
 
     LASwaveform13reader* laswaveform13reader = lasreadopener.open_waveform13(&lasreader->header);
 
+    // get a pointer to the header
+
+    LASheader* header = &(lasreader->header);
+
+    // open output file
+  
+    FILE* file_out;
+
+    if (laswriteopener.is_piped())
+    {
+      file_out = stdout;
+    }
+    else
+    {
+      // create output file name if needed 
+
+      if (laswriteopener.get_file_name() == 0)
+      {
+        if (lasreadopener.get_file_name() == 0)
+        {
+          fprintf(stderr, "ERROR: no output file specified\n");
+          byebye(true, argc==1);
+        }
+        laswriteopener.make_file_name(lasreadopener.get_file_name(), -2);
+      }
+
+      const CHAR* file_name_out = laswriteopener.get_file_name();
+
+      // open output file
+
+      file_out = fopen(file_name_out, "w");
+
+      // fail if output file does not open
+
+      if (file_out == 0)
+      {
+        fprintf(stderr, "ERROR: could not open '%s' for write\n", file_name_out);
+        byebye(true, argc==1);
+      }
+
+      laswriteopener.set_file_name(0);
+    }
+
+    // maybe PTS or PTX format
+
+    if (opts)
+    {
+      // look for VRL with PTS or PTX info
+      const LASvlr* ptsVLR = 0;
+      const LASvlr* ptxVLR = 0;
+      if ((ptsVLR = header->get_vlr("LAStools", 2000)) || (ptxVLR = header->get_vlr("LAStools", 2001)))
+      {
+        if ((parse_string == 0) || (strcmp(parse_string, "original") == 0))
+        {
+          if (parse_string) free(parse_string);
+          if (ptsVLR && (ptsVLR->record_length_after_header >= 32))
+          {
+            parse_string = strdup((CHAR*)(ptsVLR->data + 16));
+          }
+          else if (ptxVLR && (ptxVLR->record_length_after_header >= 32))
+          {
+            parse_string = strdup((CHAR*)(ptxVLR->data + 16));
+          }
+          else if (ptsVLR)
+          {
+            fprintf(stderr, "WARNING: found VLR for PTS with wrong payload size of %d.\n", ptsVLR->record_length_after_header);
+          }
+          else if (ptxVLR)
+          {
+            fprintf(stderr, "WARNING: found VLR for PTX with wrong payload size of %d.\n", ptxVLR->record_length_after_header);
+          }
+        }
+      }
+      else
+      {
+        fprintf(stderr, "WARNING: found no VLR with PTS or PTX info.\n");
+      }
+      if (header->version_minor >= 4)
+      {
+#ifdef _WIN32
+        fprintf(file_out, "%I64d       \012", header->extended_number_of_point_records);
+#else
+        fprintf(file_out, "%lld       \012", header->extended_number_of_point_records);
+#endif
+      }
+      else
+      {
+        fprintf(file_out, "%u       \012", header->number_of_point_records);
+      }
+      if (parse_string && strcmp(parse_string, "xyz") && strcmp(parse_string, "xyzi") && strcmp(parse_string, "xyziRGB") && strcmp(parse_string, "xyzRGB"))
+      {
+        fprintf(stderr, "WARNING: the parse string for PTS should be 'xyz', 'xyzi', 'xyziRGB', or 'xyzRGB'\n");
+      }
+      if (separator_sign != ' ')
+      {
+        fprintf(stderr, "WARNING: the separator for PTS should be 'space' not '%s'\n", separator);
+      }
+    }
+    else if (optx)
+    {
+      // look for VRL with PTX info
+      const LASvlr* ptxVLR = header->get_vlr("LAStools", 2001);
+      if (ptxVLR && (ptxVLR->record_length_after_header == 272))
+      {
+        U8* payload = ptxVLR->data;
+        if ((parse_string == 0) || (strcmp(parse_string, "original") == 0))
+        {
+          if (parse_string) free(parse_string);
+          parse_string = strdup((CHAR*)(payload + 16));
+        }
+        fprintf(file_out, "%u     \012", (U32)((I64*)payload)[4]); // ncols
+        fprintf(file_out, "%u     \012", (U32)((I64*)payload)[5]); // nrows
+        fprintf(file_out, "%g %g %g\012", ((F64*)payload)[6], ((F64*)payload)[7], ((F64*)payload)[8]); // translation
+        fprintf(file_out, "%g %g %g\012", ((F64*)payload)[9], ((F64*)payload)[10], ((F64*)payload)[11]); // rotation_row_0
+        fprintf(file_out, "%g %g %g\012", ((F64*)payload)[12], ((F64*)payload)[13], ((F64*)payload)[14]); // rotation_row_1
+        fprintf(file_out, "%g %g %g\012", ((F64*)payload)[15], ((F64*)payload)[16], ((F64*)payload)[17]); // rotation_row_2
+        fprintf(file_out, "%g %g %g %g\012", ((F64*)payload)[18], ((F64*)payload)[19], ((F64*)payload)[20], ((F64*)payload)[21]); // transformation_row_0
+        fprintf(file_out, "%g %g %g %g\012", ((F64*)payload)[22], ((F64*)payload)[23], ((F64*)payload)[24], ((F64*)payload)[25]); // transformation_row_0
+        fprintf(file_out, "%g %g %g %g\012", ((F64*)payload)[26], ((F64*)payload)[27], ((F64*)payload)[28], ((F64*)payload)[29]); // transformation_row_0
+        fprintf(file_out, "%g %g %g %g\012", ((F64*)payload)[30], ((F64*)payload)[31], ((F64*)payload)[32], ((F64*)payload)[33]); // transformation_row_0
+      }
+      else
+      {
+        if (ptxVLR)
+        {
+          fprintf(stderr, "WARNING: found VLR for PTX with wrong payload size of %d.\n", ptxVLR->record_length_after_header);
+        }
+        else
+        {
+          fprintf(stderr, "WARNING: found no VLR with PTX info.\n");
+        }
+        fprintf(stderr, "         outputting PTS instead ...\n");
+        if (header->version_minor >= 4)
+        {
+#ifdef _WIN32
+          fprintf(file_out, "%I64d       \012", header->extended_number_of_point_records);
+#else
+          fprintf(file_out, "%lld       \012", header->extended_number_of_point_records);
+#endif
+        }
+        else
+        {
+          fprintf(file_out, "%u       \012", header->number_of_point_records);
+        }
+      }
+      if (parse_string && strcmp(parse_string, "xyz") && strcmp(parse_string, "xyzi") && strcmp(parse_string, "xyziRGB") && strcmp(parse_string, "xyzRGB"))
+      {
+        fprintf(stderr, "WARNING: the parse string for PTX should be 'xyz', 'xyzi', 'xyziRGB', or 'xyzRGB'\n");
+      }
+      if (separator_sign != ' ')
+      {
+        fprintf(stderr, "WARNING: the separator for PTX should be 'space' not '%s'\n", separator);
+      }
+    }
+    else if (header_comment_sign)
+    {
+      // output header info
+      fprintf(file_out, "%c file signature:            '%.4s'\012", header_comment_sign, header->file_signature);
+      fprintf(file_out, "%c file source ID:            %d\012", header_comment_sign, header->file_source_ID);
+      fprintf(file_out, "%c reserved (global encoding):%d\012", header_comment_sign, header->global_encoding);
+      fprintf(file_out, "%c project ID GUID data 1-4:  %d %d %d '%.8s'\012", header_comment_sign, header->project_ID_GUID_data_1, header->project_ID_GUID_data_2, header->project_ID_GUID_data_3, header->project_ID_GUID_data_4);
+      fprintf(file_out, "%c version major.minor:       %d.%d\012", header_comment_sign, header->version_major, header->version_minor);
+      fprintf(file_out, "%c system_identifier:         '%.32s'\012", header_comment_sign, header->system_identifier);
+      fprintf(file_out, "%c generating_software:       '%.32s'\012", header_comment_sign, header->generating_software);
+      fprintf(file_out, "%c file creation day/year:    %d/%d\012", header_comment_sign, header->file_creation_day, header->file_creation_year);
+      fprintf(file_out, "%c header size                %d\012", header_comment_sign, header->header_size);
+      fprintf(file_out, "%c offset to point data       %u\012", header_comment_sign, header->offset_to_point_data);
+      fprintf(file_out, "%c number var. length records %u\012", header_comment_sign, header->number_of_variable_length_records);
+      fprintf(file_out, "%c point data format          %d\012", header_comment_sign, header->point_data_format);
+      fprintf(file_out, "%c point data record length   %d\012", header_comment_sign, header->point_data_record_length);
+      fprintf(file_out, "%c number of point records    %u\012", header_comment_sign, header->number_of_point_records);
+      fprintf(file_out, "%c number of points by return %u %u %u %u %u\012", header_comment_sign, header->number_of_points_by_return[0], header->number_of_points_by_return[1], header->number_of_points_by_return[2], header->number_of_points_by_return[3], header->number_of_points_by_return[4]);
+      fprintf(file_out, "%c scale factor x y z         %g %g %g\012", header_comment_sign, header->x_scale_factor, header->y_scale_factor, header->z_scale_factor);
+      fprintf(file_out, "%c offset x y z               ", header_comment_sign); lidardouble2string(printstring, header->x_offset); fprintf(file_out, "%s ", printstring);  lidardouble2string(printstring, header->y_offset); fprintf(file_out, "%s ", printstring);  lidardouble2string(printstring, header->z_offset); fprintf(file_out, "%s\012", printstring);
+      fprintf(file_out, "%c min x y z                  ", header_comment_sign); lidardouble2string(printstring, header->min_x, header->x_scale_factor); fprintf(file_out, "%s ", printstring); lidardouble2string(printstring, header->min_y, header->y_scale_factor); fprintf(file_out, "%s ", printstring); lidardouble2string(printstring, header->min_z, header->z_scale_factor); fprintf(file_out, "%s\012", printstring);
+      fprintf(file_out, "%c max x y z                  ", header_comment_sign); lidardouble2string(printstring, header->max_x, header->x_scale_factor); fprintf(file_out, "%s ", printstring); lidardouble2string(printstring, header->max_y, header->y_scale_factor); fprintf(file_out, "%s ", printstring); lidardouble2string(printstring, header->max_z, header->z_scale_factor); fprintf(file_out, "%s\012", printstring);
+    }
+
+    // maybe create default parse string
+
+    if (parse_string == 0) parse_string = strdup("xyz");
+
     // check requested fields and print warnings of necessary
     i = 0;
     while (parse_string[i])
@@ -657,14 +855,14 @@ int main(int argc, char *argv[])
       case '7':
       case '8':
       case '9':
-        if ((parse_string[i] - '0') >= lasreader->header.number_extra_attributes)
+        if ((parse_string[i] - '0') >= lasreader->header.number_attributes)
         {
-          fprintf(stderr, "WARNING: extra attribute '%d' does not exist.\n", (parse_string[i] - '0'));
+          fprintf(stderr, "WARNING: attribute '%d' does not exist.\n", (parse_string[i] - '0'));
           parse_string[i] = 's';
         }
         else
         {
-          extra_attribute_array_offsets[(parse_string[i] - '0')] = lasreader->header.get_extra_attribute_array_offset((parse_string[i] - '0'));
+          attribute_starts[(parse_string[i] - '0')] = lasreader->header.get_attribute_start((parse_string[i] - '0'));
         }
         break;
       default:
@@ -673,101 +871,10 @@ int main(int argc, char *argv[])
       i++;
     }
 
-    // open output file
-  
-    FILE* file_out;
-
-    if (laswriteopener.is_piped())
-    {
-      file_out = stdout;
-    }
-    else
-    {
-      // create output file name if needed 
-
-      if (laswriteopener.get_file_name() == 0)
-      {
-        if (lasreadopener.get_file_name() == 0)
-        {
-          fprintf(stderr, "ERROR: no output file specified\n");
-          byebye(true, argc==1);
-        }
-        laswriteopener.make_file_name(lasreadopener.get_file_name(), -2);
-      }
-
-      const CHAR* file_name_out = laswriteopener.get_file_name();
-
-      // open output file
-
-      file_out = fopen(file_name_out, "w");
-
-      // fail if output file does not open
-
-      if (file_out == 0)
-      {
-        fprintf(stderr, "ERROR: could not open '%s' for write\n", file_name_out);
-        byebye(true, argc==1);
-      }
-
-      laswriteopener.set_file_name(0);
-    }
-
-    // maybe PTS format
-
-    if (opts)
-    {
-      if (strcmp(parse_string, "xyz") && strcmp(parse_string, "xyzi") && strcmp(parse_string, "xyziRGB"))
-      {
-        fprintf(stderr, "WARNING: the parse string for PTS should be 'xyz', 'xyzi', or 'xyziRGB'\n");
-      }
-      if (separator_sign != ' ')
-      {
-        fprintf(stderr, "WARNING: the separator for PTS should be ' ' not '%c'\n", separator_sign);
-      }
-      if (lasreader->header.version_minor >= 4)
-      {
-#ifdef _WIN32
-        fprintf(file_out, "%I64d\012", lasreader->header.extended_number_of_point_records);
-#else
-        fprintf(file_out, "%lld\012", lasreader->header.extended_number_of_point_records);
-#endif
-      }
-      else
-      {
-        fprintf(file_out, "%u\012", lasreader->header.number_of_point_records);
-      }
-    }
-
-    // output header info
-
-    if (header_comment_sign)
-    {
-      LASheader* header = &(lasreader->header);
-      fprintf(file_out, "%c file signature:            '%.4s'\012", header_comment_sign, header->file_signature);
-      fprintf(file_out, "%c file source ID:            %d\012", header_comment_sign, header->file_source_id);
-      fprintf(file_out, "%c reserved (global encoding):%d\012", header_comment_sign, header->global_encoding);
-      fprintf(file_out, "%c project ID GUID data 1-4:  %d %d %d '%.8s'\012", header_comment_sign, header->project_ID_GUID_data_1, header->project_ID_GUID_data_2, header->project_ID_GUID_data_3, header->project_ID_GUID_data_4);
-      fprintf(file_out, "%c version major.minor:       %d.%d\012", header_comment_sign, header->version_major, header->version_minor);
-      fprintf(file_out, "%c system_identifier:         '%.32s'\012", header_comment_sign, header->system_identifier);
-      fprintf(file_out, "%c generating_software:       '%.32s'\012", header_comment_sign, header->generating_software);
-      fprintf(file_out, "%c file creation day/year:    %d/%d\012", header_comment_sign, header->file_creation_day, header->file_creation_year);
-      fprintf(file_out, "%c header size                %d\012", header_comment_sign, header->header_size);
-      fprintf(file_out, "%c offset to point data       %u\012", header_comment_sign, header->offset_to_point_data);
-      fprintf(file_out, "%c number var. length records %u\012", header_comment_sign, header->number_of_variable_length_records);
-      fprintf(file_out, "%c point data format          %d\012", header_comment_sign, header->point_data_format);
-      fprintf(file_out, "%c point data record length   %d\012", header_comment_sign, header->point_data_record_length);
-      fprintf(file_out, "%c number of point records    %u\012", header_comment_sign, header->number_of_point_records);
-      fprintf(file_out, "%c number of points by return %u %u %u %u %u\012", header_comment_sign, header->number_of_points_by_return[0], header->number_of_points_by_return[1], header->number_of_points_by_return[2], header->number_of_points_by_return[3], header->number_of_points_by_return[4]);
-      fprintf(file_out, "%c scale factor x y z         %g %g %g\012", header_comment_sign, header->x_scale_factor, header->y_scale_factor, header->z_scale_factor);
-      fprintf(file_out, "%c offset x y z               ", header_comment_sign); lidardouble2string(printstring, header->x_offset); fprintf(file_out, "%s ", printstring);  lidardouble2string(printstring, header->y_offset); fprintf(file_out, "%s ", printstring);  lidardouble2string(printstring, header->z_offset); fprintf(file_out, "%s\012", printstring);
-      fprintf(file_out, "%c min x y z                  ", header_comment_sign); lidardouble2string(printstring, header->min_x, header->x_scale_factor); fprintf(file_out, "%s ", printstring); lidardouble2string(printstring, header->min_y, header->y_scale_factor); fprintf(file_out, "%s ", printstring); lidardouble2string(printstring, header->min_z, header->z_scale_factor); fprintf(file_out, "%s\012", printstring);
-      fprintf(file_out, "%c max x y z                  ", header_comment_sign); lidardouble2string(printstring, header->max_x, header->x_scale_factor); fprintf(file_out, "%s ", printstring); lidardouble2string(printstring, header->max_y, header->y_scale_factor); fprintf(file_out, "%s ", printstring); lidardouble2string(printstring, header->max_z, header->z_scale_factor); fprintf(file_out, "%s\012", printstring);
-    }
-
     // in case diff is requested
 
     int last_XYZ[3] = {0,0,0};
-    unsigned short last_RGB[3] = {0,0,0};
+    unsigned short last_RGB[4] = {0,0,0};
     double last_GPSTIME = 0;
 
     // read and convert the points to ASCII
@@ -795,43 +902,55 @@ int main(int argc, char *argv[])
           lidardouble2string(printstring, lasreader->point.get_z(), lasreader->header.z_scale_factor); fprintf(file_out, "%s", printstring);
           break;
         case 'X': // the unscaled raw integer X coordinate
-          fprintf(file_out, "%d", lasreader->point.x);
+          fprintf(file_out, "%d", lasreader->point.get_X());
           break;
         case 'Y': // the unscaled raw integer Y coordinate
-          fprintf(file_out, "%d", lasreader->point.y);
+          fprintf(file_out, "%d", lasreader->point.get_Y());
           break;
         case 'Z': // the unscaled raw integer Z coordinate
-          fprintf(file_out, "%d", lasreader->point.z);
+          fprintf(file_out, "%d", lasreader->point.get_Z());
           break;
         case 't': // the gps-time
-          fprintf(file_out, "%.6f", lasreader->point.gps_time);
+          fprintf(file_out, "%.6f", lasreader->point.get_gps_time());
           break;
         case 'i': // the intensity
-          fprintf(file_out, "%d", lasreader->point.intensity);
+          if (opts)
+            fprintf(file_out, "%d", -2048 + lasreader->point.get_intensity());
+          else if (optx)
+          {
+            int len;
+            len = sprintf(printstring, "%.3f", 1.0f/4095.0f * lasreader->point.get_intensity()) - 1;
+            while (printstring[len] == '0') len--;
+            if (printstring[len] != '.') len++;
+            printstring[len] = '\0';
+            fprintf(file_out, "%s", printstring);
+          }
+          else
+            fprintf(file_out, "%d", lasreader->point.get_intensity());
           break;
         case 'a': // the scan angle
-          fprintf(file_out, "%d", lasreader->point.scan_angle_rank);
+          fprintf(file_out, "%d", lasreader->point.get_scan_angle_rank());
           break;
         case 'r': // the number of the return
-          fprintf(file_out, "%d", lasreader->point.return_number);
+          fprintf(file_out, "%d", lasreader->point.get_return_number());
           break;
         case 'c': // the classification
-          fprintf(file_out, "%d", lasreader->point.classification);
+          fprintf(file_out, "%d", lasreader->point.get_classification());
           break;
         case 'u': // the user data
-          fprintf(file_out, "%d", lasreader->point.user_data);
+          fprintf(file_out, "%d", lasreader->point.get_user_data());
           break;
         case 'n': // the number of returns of given pulse
-          fprintf(file_out, "%d", lasreader->point.number_of_returns_of_given_pulse);
+          fprintf(file_out, "%d", lasreader->point.get_number_of_returns());
           break;
         case 'p': // the point source ID
-          fprintf(file_out, "%d", lasreader->point.point_source_ID);
+          fprintf(file_out, "%d", lasreader->point.get_point_source_ID());
           break;
         case 'e': // the edge of flight line flag
-          fprintf(file_out, "%d", lasreader->point.edge_of_flight_line);
+          fprintf(file_out, "%d", lasreader->point.get_edge_of_flight_line());
           break;
         case 'd': // the direction of scan flag
-          fprintf(file_out, "%d", lasreader->point.scan_direction_flag);
+          fprintf(file_out, "%d", lasreader->point.get_scan_direction_flag());
           break;
         case 'R': // the red channel of the RGB field
           fprintf(file_out, "%d", lasreader->point.rgb[0]);
@@ -857,13 +976,13 @@ int main(int argc, char *argv[])
 #endif
           break;
         case ')': // the raw integer X difference to the last point
-          fprintf(file_out, "%d", lasreader->point.x-last_XYZ[0]);
+          fprintf(file_out, "%d", lasreader->point.get_X()-last_XYZ[0]);
           break;
         case '!': // the raw integer Y difference to the last point
-          fprintf(file_out, "%d", lasreader->point.y-last_XYZ[1]);
+          fprintf(file_out, "%d", lasreader->point.get_Y()-last_XYZ[1]);
           break;
         case '@': // the raw integer Z difference to the last point
-          fprintf(file_out, "%d", lasreader->point.z-last_XYZ[2]);
+          fprintf(file_out, "%d", lasreader->point.get_Z()-last_XYZ[2]);
           break;
         case '#': // the gps-time difference to the last point
           lidardouble2string(printstring,lasreader->point.gps_time-last_GPSTIME); fprintf(file_out, "%s", printstring);
@@ -906,7 +1025,7 @@ int main(int argc, char *argv[])
           fprintf(file_out, "%s", extra_string);
           break;
         default:
-          print_extra_attribute(file_out, &lasreader->header, &lasreader->point, (I32)(parse_string[i]-'0'), printstring);
+          print_attribute(file_out, &lasreader->header, &lasreader->point, (I32)(parse_string[i]-'0'), printstring);
         }
         i++;
         if (parse_string[i])
@@ -921,9 +1040,9 @@ int main(int argc, char *argv[])
       }
       if (diff)
       {
-        last_XYZ[0] = lasreader->point.x;
-        last_XYZ[1] = lasreader->point.y;
-        last_XYZ[2] = lasreader->point.z;
+        last_XYZ[0] = lasreader->point.get_X();
+        last_XYZ[1] = lasreader->point.get_Y();
+        last_XYZ[2] = lasreader->point.get_Z();
         last_GPSTIME = lasreader->point.gps_time;
         last_RGB[0] = lasreader->point.rgb[0];
         last_RGB[1] = lasreader->point.rgb[1];

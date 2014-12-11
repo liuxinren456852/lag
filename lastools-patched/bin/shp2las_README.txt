@@ -8,7 +8,7 @@
  
   Allows adding a VLR to the header with projection information.
 
-  Please license from martin.isenburg@gmail.com to use shp2las
+  Please license from martin.isenburg@rapidlasso.com to use shp2las
   commercially.
  
   For updates check the website or join the LAStools mailing list.
@@ -41,7 +41,7 @@ converts 'lidar.shp' to the LAS file 'lidar.las' with the specified scale
 
 converts 'lidar.shp' to the compressed LAZ file 'lidar.laz' with the specified offsey
 
->> shp2las -i lidar.shp -o lidar.las -verbose
+>> shp2las -i lidar.shp -o lidar.las -v
 
 converts 'lidar.shp' to the LAS file 'lidar.las' and outputs some of
 the header information found in the SHP file
@@ -74,4 +74,4 @@ Other parameters are
 
 ---------------
 
-if you find bugs let me (martin.isenburg@gmail.com) know.
+if you find bugs let me (martin.isenburg@rapidlasso.com) know.

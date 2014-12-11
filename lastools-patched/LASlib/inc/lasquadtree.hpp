@@ -15,11 +15,11 @@
 
   COPYRIGHT:
 
-    (c) 2007-2012, martin isenburg, rapidlasso - tools to catch reality
+    (c) 2007-2012, martin isenburg, rapidlasso - fast tools to catch reality
 
     This is free software; you can redistribute and/or modify it under the
     terms of the GNU Lesser General Licence as published by the Free Software
-    Foundation except for (R). See the LICENSE.txt file for more information.
+    Foundation. See the LICENSE.txt file for more information.
 
     This software is distributed WITHOUT ANY WARRANTY and without even the
     implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
@@ -79,6 +79,7 @@ public:
   // for LASquadtree
   BOOL setup(F64 bb_min_x, F64 bb_max_x, F64 bb_min_y, F64 bb_max_y, F32 cell_size = 1000.0f);
   BOOL setup(F64 bb_min_x, F64 bb_max_x, F64 bb_min_y, F64 bb_max_y, F32 cell_size, F32 offset_x, F32 offset_y);
+  BOOL tiling_setup(F32 min_x, F32 max_x, F32 min_y, F32 max_y, U32 levels);
   BOOL subtiling_setup(F32 min_x, F32 max_x, F32 min_y, F32 max_y, U32 sub_level, U32 sub_level_index, U32 levels);
 
   // additional index queries
@@ -91,7 +92,9 @@ public:
   // additional bounding box queries
   void get_cell_bounding_box(const F64 x, const F64 y, U32 level, F32* min, F32* max) const;
   void get_cell_bounding_box(U32 level_index, U32 level, F32* min, F32* max) const;
+  void get_cell_bounding_box(U32 level_index, U32 level, F64* min, F64* max) const;
   void get_cell_bounding_box(U32 level_index, F32* min, F32* max) const;
+  void get_cell_bounding_box(U32 level_index, F64* min, F64* max) const;
 
   // index conversions
   U32 get_level(U32 cell_index) const;

@@ -17,7 +17,7 @@
 
     This is free software; you can redistribute and/or modify it under the
     terms of the GNU Lesser General Licence as published by the Free Software
-    Foundation except for (R). See the LICENSE.txt file for more information.
+    Foundation. See the LICENSE.txt file for more information.
 
     This software is distributed WITHOUT ANY WARRANTY and without even the
     implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
@@ -262,6 +262,12 @@ BOOL LASwaveform13reader::read_waveform(const LASpoint* point)
     return FALSE;
   }
 
+  if (wave_packet_descr[index] == 0)
+  {
+    fprintf(stderr, "ERROR: wavepacket is indexing non-existant descriptor %u\n", index);
+    return FALSE;
+  }
+
   nbits = wave_packet_descr[index]->getBitsPerSample();
   if ((nbits != 8) && (nbits != 16))
   {
@@ -270,6 +276,11 @@ BOOL LASwaveform13reader::read_waveform(const LASpoint* point)
   }
 
   nsamples = wave_packet_descr[index]->getNumberOfSamples();
+
+//  temporary Optech Fix
+//  nsamples = point->wavepacket.getSize(); 
+//  if (nbits == 16) nsamples / 2;
+
   if (nsamples == 0)
   {
     fprintf(stderr, "ERROR: waveform has no samples\n");

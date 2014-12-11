@@ -12,9 +12,8 @@
   a simple example how to use the DLL.
 
   To get LASzip just download the LAStools distribution which contains
-  the *slightly* restricted LASlib sources as well as the *completely*
-  unrestricted LASzip sources (see LICENSE.txt) together with the popular
-  LAStools binaries and some small example LAZ files.
+  the LASlib as well as the LASzip sources together with the binaries
+  of the popular LAStools software and some small example LAZ files.
 
   http://laszip.org/
   http://lastools.org/
@@ -30,6 +29,6 @@
 
   COPYRIGHT:
   
-  (c) 2007-2013, martin isenburg, rapidlasso - fast tools to catch reality
+  (c) 2007-2014, martin isenburg, rapidlasso - fast tools to catch reality
 
 --------------------------------------------------------------------------

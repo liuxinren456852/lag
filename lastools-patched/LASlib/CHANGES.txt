@@ -1,7 +1,25 @@
+16 November 2014 -- LASlib: improved detection & reporting of file truncation and/or LAZ bit-errors
+30 August 2014 -- LASlib: significantly less I/O overhead especially on '-merged' folders of LAZ
+12 August 2014 -- LASlib: fixed (another) small bug in on-the-fly BIL reader LASreader_bil.cpp
+30 July 2014 -- LASlib: fixed small bug in on-the-fly BIL reader LASreader_bil.cpp
+21 July 2014 -- LASlib: new filter called '-thin_with_time 0.0001', new '-unique' flag for input files
+9 July 2014 -- LASlib: make LASreader_txt parse piped ASCII text with '-stdin' and '-itxt'
+9 July 2014 -- LASlib: new transforms (-set_withheld_flag 0 -set_synthetic_flag 1 -set_keypoint_flag 0)
+22 March 2014 -- LASlib: allow more flavours of ASC grids for on-the-fly conversion to LAS
+21 February 2014 -- LASlib: renaming of clip filters (-clip_z to -keep_z, -clip_z_between to -drop_z) 
+7 February 2014 -- LASlib: renaming of several variables (xyz -> XYZ, ...) for github launch
+30 December 2013 -- lasinfo: produce histogram for attributes in extra bytes with '-histo 0 5' 
+9 December 2013 -- LASlib: bug fix and improved writing of new LAS 1.4 point types
+25 November 2013 -- LASlib: new capability to filter points based on RGB band ranges  
+10 October 2013 -- LASlib: can now read FUSION DTM rasters by on-the-fly conversion to LAS
+3 October 2013 -- LASlib: fix for reading and merging on-the-fly converted rasters (e.g. BIL, ASC)
+30 September 2013 -- txt2las: bug fixed for adding EXTRA_BYTES with scales and offsets
+22 September 2013 -- LASlib: input files paths can now contain both '/' and '\'
+18 September 2013 -- LASlib: output WARNING if -odir "c:\" or -odir "..\lidar\" is used (windows)
 29 July 2013 -- lasinfo: fixed output directory bug when running with multiple cores
 6 May 2013 -- lasinfo: improved handling of LAS 1.4 files
 1 May 2013 -- fixed LAZ reading bug (50000 points only) for download-truncated LAZ files
-9 April 2013 -- output a WARNING if the option -odir "c:\" or -odir "..\lidar\" is used
+9 April 2013 -- LASlib: output WARNING if -odir "c:\" or -odir "..\lidar\" is used (linux)
 15 March 2013 -- corrected interplay of '-ocut 2' and '-odix _g' when used at the same time
 28 December 2012 -- added '-clip_z_between 12 14.51' and '-clip_raw_z_between 1200 1451'
 30 September 2012 -- extended classification for new point types is written correctly

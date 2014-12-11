@@ -27,7 +27,7 @@ Package=<4>
 
 ###############################################################################
 
-Project: "laszip"=.\laszip\laszip.dsp - Package Owner=<4>
+Project: "lasexample_write_only"=.\example\lasexample_write_only.dsp - Package Owner=<4>
 
 Package=<5>
 {{{
@@ -39,7 +39,7 @@ Package=<4>
 
 ###############################################################################
 
-Project: "laszippertest"=.\test\laszippertest.dsp - Package Owner=<4>
+Project: "laszippertest"=..\LASzip\example\laszippertest.dsp - Package Owner=<4>
 
 Package=<5>
 {{{

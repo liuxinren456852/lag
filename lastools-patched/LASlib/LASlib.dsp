@@ -79,7 +79,7 @@ LIB32=link.exe -lib
 # ADD LIB32 /nologo
 # Begin Special Build Tool
 SOURCE="$(InputPath)"
-PostBuild_Cmds=copy Debug\LASlib.lib libD\LASlib.lib
+PostBuild_Cmds=copy Debug\LASlib.lib lib\LASlibD.lib
 # End Special Build Tool
 
 !ENDIF 
@@ -142,6 +142,10 @@ SOURCE=.\src\lasreader_bil.cpp
 # Begin Source File
 
 SOURCE=.\src\lasreader_bin.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\src\lasreader_dtm.cpp
 # End Source File
 # Begin Source File
 
@@ -289,14 +293,6 @@ SOURCE=..\LASzip\src\bytestreamout_ostream.hpp
 # End Source File
 # Begin Source File
 
-SOURCE=..\LASzip\src\entropydecoder.hpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\LASzip\src\entropyencoder.hpp
-# End Source File
-# Begin Source File
-
 SOURCE=..\LASzip\src\integercompressor.hpp
 # End Source File
 # Begin Source File
@@ -334,6 +330,10 @@ SOURCE=.\inc\lasreader_bil.hpp
 # Begin Source File
 
 SOURCE=.\inc\lasreader_bin.hpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\inc\lasreader_dtm.hpp
 # End Source File
 # Begin Source File
 
@@ -450,6 +450,10 @@ SOURCE=.\inc\laswriter_wrl.hpp
 # Begin Source File
 
 SOURCE=..\LASzip\src\laszip.hpp
+# End Source File
+# Begin Source File
+
+SOURCE=..\LASzip\src\laszip_common_v1.hpp
 # End Source File
 # Begin Source File
 

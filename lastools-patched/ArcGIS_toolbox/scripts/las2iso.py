@@ -1,16 +1,15 @@
 #
 # las2iso.py
 #
-# (c) 2012, Martin Isenburg
-# LASSO - rapid tools to catch reality
+# (c) 2013, martin isenburg - http://rapidlasso.com
+#     rapidlasso GmbH - fast tools to catch reality
 #
-# uses las2iso.exe to trianulate LiDAR points into a TIN and store it as
-# an ESRI Shapefile of type MultiPatch or as an OBJ file.
+# uses las2iso.exe to contour a LiDAR file
 #
-# The LiDAR input can be in LAS/LAZ/BIN/TXT/SHP/... format.
-# The TIN output will be in SHP or OBJ format.
+# LiDAR input:   LAS/LAZ/BIN/TXT/SHP/BIL/ASC/DTM
+# vector output: SHP/WKT/KML/TXT
 #
-# for licensing details see http://rapidlasso.com/download/LICENSE.txt
+# for licensing see http://lastools.org/LICENSE.txt
 #
 
 import sys, os, arcgisscripting, subprocess
@@ -38,12 +37,22 @@ argc = len(sys.argv)
 #for i in range(0, argc):
 #    gp.AddMessage("[" + str(i) + "]" + sys.argv[i])
 
-### get the path to the LAStools binaries
-lastools_path = os.path.dirname(os.path.dirname(os.path.dirname(sys.argv[0])))+"\\bin"
+### get the path to LAStools
+lastools_path = os.path.dirname(os.path.dirname(os.path.dirname(sys.argv[0])))
+
+### make sure the path does not contain spaces
+if lastools_path.count(" ") > 0:
+    gp.AddMessage("Error. Path to .\\lastools installation contains spaces.")
+    gp.AddMessage("This does not work: " + lastools_path)
+    gp.AddMessage("This would work:    C:\\software\\lastools")
+    sys.exit(1)    
+
+### complete the path to where the LAStools executables are
+lastools_path = lastools_path + "\\bin"
 
 ### check if path exists
 if os.path.exists(lastools_path) == False:
-    gp.AddMessage("Cannot find .\lastools\bin at " + lastools_path)
+    gp.AddMessage("Cannot find .\\lastools\\bin at " + lastools_path)
     sys.exit(1)
 else:
     gp.AddMessage("Found " + lastools_path + " ...")
@@ -59,7 +68,7 @@ else:
     gp.AddMessage("Found " + las2iso_path + " ...")
 
 ### create the command string for las2iso.exe
-command = [las2iso_path]
+command = ['"'+las2iso_path+'"']
 
 ### maybe use '-verbose' option
 if sys.argv[argc-1] == "true":
@@ -67,15 +76,15 @@ if sys.argv[argc-1] == "true":
 
 ### add input LiDAR
 command.append("-i")
-command.append(sys.argv[1])
+command.append('"'+sys.argv[1]+'"')
 
 ### maybe use user-defined concavity
 if sys.argv[2] != "50":
     command.append("-concavity")
-    command.append(sys.argv[2])
+    command.append(sys.argv[2].replace(",","."))
 
 ### what should we contour
-if sys.argv[3] == "ground points only":
+if sys.argv[3] == "only ground points":
     command.append("-keep_class")
     command.append("2")
     command.append("-extra_pass")
@@ -112,10 +121,10 @@ if sys.argv[4] == "a number of x equally spaced contours":
         command.append(sys.argv[5])
 elif sys.argv[4] == "a contour every x elevation units":
     command.append("-iso_every")
-    command.append(sys.argv[5])
+    command.append(sys.argv[5].replace(",","."))
 elif sys.argv[4] == "the contour with the iso-value x":
     command.append("-iso_value")
-    command.append(sys.argv[5])
+    command.append(sys.argv[5].replace(",","."))
 
 ### maybe we should smooth the TIN
 if sys.argv[6] != "do not smooth":
@@ -135,12 +144,12 @@ if sys.argv[8] != "do not clean":
 ### do we have lakes
 if sys.argv[9] != "#":
     command.append("-lakes")
-    command.append(sys.argv[9])
+    command.append('"'+sys.argv[9]+'"')
 
 ### do we have creeks
 if sys.argv[10] != "#":
     command.append("-creeks")
-    command.append(sys.argv[10])
+    command.append('"'+sys.argv[10]+'"')
 
 ### this is where the output arguments start
 out = 11
@@ -152,24 +161,32 @@ if sys.argv[out] != "#":
 ### maybe an output file name was selected
 if sys.argv[out+1] != "#":
     command.append("-o")
-    command.append(sys.argv[out+1])
+    command.append('"'+sys.argv[out+1]+'"')
 
 ### maybe an output directory was selected
 if sys.argv[out+2] != "#":
     command.append("-odir")
-    command.append(sys.argv[out+2])
+    command.append('"'+sys.argv[out+2]+'"')
 
 ### maybe an output appendix was selected
 if sys.argv[out+3] != "#":
     command.append("-odix")
-    command.append(sys.argv[out+3])
+    command.append('"'+sys.argv[out+3]+'"')
+
+### maybe there are additional command-line options
+if sys.argv[out+4] != "#":
+    additional_options = sys.argv[out+4].split()
+    for option in additional_options:
+        command.append(option)
 
 ### report command string
 gp.AddMessage("LAStools command line:")
 command_length = len(command)
 command_string = str(command[0])
+command[0] = command[0].strip('"')
 for i in range(1, command_length):
     command_string = command_string + " " + str(command[i])
+    command[i] = command[i].strip('"')
 gp.AddMessage(command_string)
 
 ### run command

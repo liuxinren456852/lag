@@ -17,7 +17,7 @@
 
     This is free software; you can redistribute and/or modify it under the
     terms of the GNU Lesser General Licence as published by the Free Software
-    Foundation except for (R). See the LICENSE.txt file for more information.
+    Foundation. See the LICENSE.txt file for more information.
 
     This software is distributed WITHOUT ANY WARRANTY and without even the
     implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
@@ -299,19 +299,19 @@ static void lidardouble2string(CHAR* string, double value, double precision)
     lidardouble2string(string, value);
 }
 
-BOOL LASwriterTXT::unparse_extra_attribute(const LASpoint* point, I32 index)
+BOOL LASwriterTXT::unparse_attribute(const LASpoint* point, I32 index)
 {
-  if (index >= header->number_extra_attributes)
+  if (index >= header->number_attributes)
   {
     return FALSE;
   }
-  if (header->extra_attributes[index].data_type == 1)
+  if (header->attributes[index].data_type == 1)
   {
     U8 value;
-    point->get_extra_attribute(extra_attribute_array_offsets[index], value);
-    if (header->extra_attributes[index].has_scale() || header->extra_attributes[index].has_offset())
+    point->get_attribute(attribute_starts[index], value);
+    if (header->attributes[index].has_scale() || header->attributes[index].has_offset())
     {
-      F64 temp_d = header->extra_attributes[index].scale[0]*value + header->extra_attributes[index].offset[0];
+      F64 temp_d = header->attributes[index].scale[0]*value + header->attributes[index].offset[0];
       fprintf(file, "%g", temp_d);
     }
     else
@@ -319,13 +319,13 @@ BOOL LASwriterTXT::unparse_extra_attribute(const LASpoint* point, I32 index)
       fprintf(file, "%d", (I32)value);
     }
   }
-  else if (header->extra_attributes[index].data_type == 2)
+  else if (header->attributes[index].data_type == 2)
   {
     I8 value;
-    point->get_extra_attribute(extra_attribute_array_offsets[index], value);
-    if (header->extra_attributes[index].has_scale() || header->extra_attributes[index].has_offset())
+    point->get_attribute(attribute_starts[index], value);
+    if (header->attributes[index].has_scale() || header->attributes[index].has_offset())
     {
-      F64 temp_d = header->extra_attributes[index].scale[0]*value + header->extra_attributes[index].offset[0];
+      F64 temp_d = header->attributes[index].scale[0]*value + header->attributes[index].offset[0];
       fprintf(file, "%g", temp_d);
     }
     else
@@ -333,13 +333,13 @@ BOOL LASwriterTXT::unparse_extra_attribute(const LASpoint* point, I32 index)
       fprintf(file, "%d", (I32)value);
     }
   }
-  else if (header->extra_attributes[index].data_type == 3)
+  else if (header->attributes[index].data_type == 3)
   {
     U16 value;
-    point->get_extra_attribute(extra_attribute_array_offsets[index], value);
-    if (header->extra_attributes[index].has_scale() || header->extra_attributes[index].has_offset())
+    point->get_attribute(attribute_starts[index], value);
+    if (header->attributes[index].has_scale() || header->attributes[index].has_offset())
     {
-      F64 temp_d = header->extra_attributes[index].scale[0]*value + header->extra_attributes[index].offset[0];
+      F64 temp_d = header->attributes[index].scale[0]*value + header->attributes[index].offset[0];
       fprintf(file, "%g", temp_d);
     }
     else
@@ -347,13 +347,13 @@ BOOL LASwriterTXT::unparse_extra_attribute(const LASpoint* point, I32 index)
       fprintf(file, "%d", (I32)value);
     }
   }
-  else if (header->extra_attributes[index].data_type == 4)
+  else if (header->attributes[index].data_type == 4)
   {
     I16 value;
-    point->get_extra_attribute(extra_attribute_array_offsets[index], value);
-    if (header->extra_attributes[index].has_scale() || header->extra_attributes[index].has_offset())
+    point->get_attribute(attribute_starts[index], value);
+    if (header->attributes[index].has_scale() || header->attributes[index].has_offset())
     {
-      F64 temp_d = header->extra_attributes[index].scale[0]*value + header->extra_attributes[index].offset[0];
+      F64 temp_d = header->attributes[index].scale[0]*value + header->attributes[index].offset[0];
       fprintf(file, "%g", temp_d);
     }
     else
@@ -361,13 +361,13 @@ BOOL LASwriterTXT::unparse_extra_attribute(const LASpoint* point, I32 index)
       fprintf(file, "%d", (I32)value);
     }
   }
-  else if (header->extra_attributes[index].data_type == 5)
+  else if (header->attributes[index].data_type == 5)
   {
     U32 value;
-    point->get_extra_attribute(extra_attribute_array_offsets[index], value);
-    if (header->extra_attributes[index].has_scale() || header->extra_attributes[index].has_offset())
+    point->get_attribute(attribute_starts[index], value);
+    if (header->attributes[index].has_scale() || header->attributes[index].has_offset())
     {
-      F64 temp_d = header->extra_attributes[index].scale[0]*value + header->extra_attributes[index].offset[0];
+      F64 temp_d = header->attributes[index].scale[0]*value + header->attributes[index].offset[0];
       fprintf(file, "%g", temp_d);
     }
     else
@@ -375,13 +375,13 @@ BOOL LASwriterTXT::unparse_extra_attribute(const LASpoint* point, I32 index)
       fprintf(file, "%d", (I32)value);
     }
   }
-  else if (header->extra_attributes[index].data_type == 6)
+  else if (header->attributes[index].data_type == 6)
   {
     I32 value;
-    point->get_extra_attribute(extra_attribute_array_offsets[index], value);
-    if (header->extra_attributes[index].has_scale() || header->extra_attributes[index].has_offset())
+    point->get_attribute(attribute_starts[index], value);
+    if (header->attributes[index].has_scale() || header->attributes[index].has_offset())
     {
-      F64 temp_d = header->extra_attributes[index].scale[0]*value + header->extra_attributes[index].offset[0];
+      F64 temp_d = header->attributes[index].scale[0]*value + header->attributes[index].offset[0];
       fprintf(file, "%g", temp_d);
     }
     else
@@ -389,13 +389,13 @@ BOOL LASwriterTXT::unparse_extra_attribute(const LASpoint* point, I32 index)
       fprintf(file, "%d", value);
     }
   }
-  else if (header->extra_attributes[index].data_type == 9)
+  else if (header->attributes[index].data_type == 9)
   {
     F32 value;
-    point->get_extra_attribute(extra_attribute_array_offsets[index], value);
-    if (header->extra_attributes[index].has_scale() || header->extra_attributes[index].has_offset())
+    point->get_attribute(attribute_starts[index], value);
+    if (header->attributes[index].has_scale() || header->attributes[index].has_offset())
     {
-      F64 temp_d = header->extra_attributes[index].scale[0]*value + header->extra_attributes[index].offset[0];
+      F64 temp_d = header->attributes[index].scale[0]*value + header->attributes[index].offset[0];
       fprintf(file, "%g", temp_d);
     }
     else
@@ -403,13 +403,13 @@ BOOL LASwriterTXT::unparse_extra_attribute(const LASpoint* point, I32 index)
       fprintf(file, "%g", value);
     }
   }
-  else if (header->extra_attributes[index].data_type == 10)
+  else if (header->attributes[index].data_type == 10)
   {
     F64 value;
-    point->get_extra_attribute(extra_attribute_array_offsets[index], value);
-    if (header->extra_attributes[index].has_scale() || header->extra_attributes[index].has_offset())
+    point->get_attribute(attribute_starts[index], value);
+    if (header->attributes[index].has_scale() || header->attributes[index].has_offset())
     {
-      F64 temp_d = header->extra_attributes[index].scale[0]*value + header->extra_attributes[index].offset[0];
+      F64 temp_d = header->attributes[index].scale[0]*value + header->attributes[index].offset[0];
       fprintf(file, "%g", temp_d);
     }
     else
@@ -419,7 +419,7 @@ BOOL LASwriterTXT::unparse_extra_attribute(const LASpoint* point, I32 index)
   }
   else
   {
-    fprintf(stderr, "WARNING: extra attribute %d not (yet) implemented.\n", index);
+    fprintf(stderr, "WARNING: attribute %d not (yet) implemented.\n", index);
     return FALSE;
   }
   return TRUE;
@@ -434,73 +434,73 @@ BOOL LASwriterTXT::write_point(const LASpoint* point)
     switch (parse_string[i])
     {
     case 'x': // the x coordinate
-      lidardouble2string(printstring, header->get_x(point->x), header->x_scale_factor); fprintf(file, "%s", printstring);
+      lidardouble2string(printstring, header->get_x(point->get_X()), header->x_scale_factor); fprintf(file, "%s", printstring);
       break;
     case 'y': // the y coordinate
-      lidardouble2string(printstring, header->get_y(point->y), header->y_scale_factor); fprintf(file, "%s", printstring);
+      lidardouble2string(printstring, header->get_y(point->get_Y()), header->y_scale_factor); fprintf(file, "%s", printstring);
       break;
     case 'z': // the z coordinate
-      lidardouble2string(printstring, header->get_z(point->z), header->z_scale_factor); fprintf(file, "%s", printstring);
+      lidardouble2string(printstring, header->get_z(point->get_Z()), header->z_scale_factor); fprintf(file, "%s", printstring);
       break;
     case 't': // the gps-time
-      fprintf(file, "%.6f", point->gps_time);
+      fprintf(file, "%.6f", point->get_gps_time());
       break;
     case 'i': // the intensity
       if (opts)
-        fprintf(file, "%d", -2048 + point->intensity);
+        fprintf(file, "%d", -2048 + point->get_intensity());
       else if (optx)
       {
         int len;
-        len = sprintf(printstring, "%.3f", 1.0f/4095.0f * point->intensity) - 1;
+        len = sprintf(printstring, "%.3f", 1.0f/4095.0f * point->get_intensity()) - 1;
         while (printstring[len] == '0') len--;
         if (printstring[len] != '.') len++;
         printstring[len] = '\0';
         fprintf(file, "%s", printstring);
       }
       else
-        fprintf(file, "%d", point->intensity);
+        fprintf(file, "%d", point->get_intensity());
       break;
     case 'a': // the scan angle
-      fprintf(file, "%d", point->scan_angle_rank);
+      fprintf(file, "%d", point->get_scan_angle_rank());
       break;
     case 'r': // the number of the return
-      fprintf(file, "%d", point->return_number);
+      fprintf(file, "%d", point->get_return_number());
       break;
     case 'c': // the classification
-      fprintf(file, "%d", point->classification);
+      fprintf(file, "%d", point->get_classification());
       break;
     case 'u': // the user data
-      fprintf(file, "%d", point->user_data);
+      fprintf(file, "%d", point->get_user_data());
       break;
     case 'n': // the number of returns of given pulse
-      fprintf(file, "%d", point->number_of_returns_of_given_pulse);
+      fprintf(file, "%d", point->get_number_of_returns());
       break;
     case 'p': // the point source ID
-      fprintf(file, "%d", point->point_source_ID);
+      fprintf(file, "%d", point->get_point_source_ID());
       break;
     case 'e': // the edge of flight line flag
-      fprintf(file, "%d", point->edge_of_flight_line);
+      fprintf(file, "%d", point->get_edge_of_flight_line());
       break;
     case 'd': // the direction of scan flag
-      fprintf(file, "%d", point->scan_direction_flag);
+      fprintf(file, "%d", point->get_scan_direction_flag());
       break;
     case 'R': // the red channel of the RGB field
       if (scale_rgb != 1.0f)
-        fprintf(file, "%.2f", scale_rgb*point->rgb[0]);
+        fprintf(file, "%.2f", scale_rgb*point->get_rgb()[0]);
       else
-        fprintf(file, "%d", point->rgb[0]);
+        fprintf(file, "%d", point->get_rgb()[0]);
       break;
     case 'G': // the green channel of the RGB field
       if (scale_rgb != 1.0f)
-        fprintf(file, "%.2f", scale_rgb*point->rgb[1]);
+        fprintf(file, "%.2f", scale_rgb*point->get_rgb()[1]);
       else
-        fprintf(file, "%d", point->rgb[1]);
+        fprintf(file, "%d", point->get_rgb()[1]);
       break;
     case 'B': // the blue channel of the RGB field
       if (scale_rgb != 1.0f)
-        fprintf(file, "%.2f", scale_rgb*point->rgb[2]);
+        fprintf(file, "%.2f", scale_rgb*point->get_rgb()[2]);
       else
-        fprintf(file, "%d", point->rgb[2]);
+        fprintf(file, "%d", point->get_rgb()[2]);
       break;
     case 'm': // the index of the point (count starts at 0)
 #ifdef _WIN32
@@ -523,16 +523,16 @@ BOOL LASwriterTXT::write_point(const LASpoint* point)
       fprintf(file, "%d%c%d%c%d%c%g%c%.15g%c%.15g%c%.15g", point->wavepacket.getIndex(), separator_sign, (U32)point->wavepacket.getOffset(), separator_sign, point->wavepacket.getSize(), separator_sign, point->wavepacket.getLocation(), separator_sign, point->wavepacket.getXt(), separator_sign, point->wavepacket.getYt(), separator_sign, point->wavepacket.getZt());
       break;
     case 'X': // the unscaled and unoffset integer X coordinate
-      fprintf(file, "%d", point->x);
+      fprintf(file, "%d", point->get_X());
       break;
     case 'Y': // the unscaled and unoffset integer Y coordinate
-      fprintf(file, "%d", point->y);
+      fprintf(file, "%d", point->get_Y());
       break;
     case 'Z': // the unscaled and unoffset integer Z coordinate
-      fprintf(file, "%d", point->z);
+      fprintf(file, "%d", point->get_Z());
       break;
     default:
-      unparse_extra_attribute(point, (I32)(parse_string[i]-'0'));
+      unparse_attribute(point, (I32)(parse_string[i]-'0'));
     }
     i++;
     if (parse_string[i])
@@ -627,12 +627,12 @@ BOOL LASwriterTXT::check_parse_string(const CHAR* parse_string)
       if (p[0] >= '0' && p[0] <= '9')
       {
         I32 index = (I32)(p[0] - '0');
-        if (index >= header->number_extra_attributes)
+        if (index >= header->number_attributes)
         {
-          fprintf(stderr, "ERROR: extra attribute '%d' does not exist.\n", index);
+          fprintf(stderr, "ERROR: extra bytes attribute '%d' does not exist.\n", index);
           return FALSE;
         }
-        extra_attribute_array_offsets[index] = header->get_extra_attribute_array_offset(index);
+        attribute_starts[index] = header->get_attribute_start(index);
       }
       else
       {

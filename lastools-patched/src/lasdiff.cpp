@@ -15,17 +15,18 @@
   
   COPYRIGHT:
   
-    (c) 2007-12, martin isenburg, rapidlasso - fast tools to catch reality
+    (c) 2007-14, martin isenburg, rapidlasso - fast tools to catch reality
 
     This is free software; you can redistribute and/or modify it under the
     terms of the GNU Lesser General Licence as published by the Free Software
-    Foundation except for (R). See the LICENSE.txt file for more information.
+    Foundation. See the LICENSE.txt file for more information.
 
     This software is distributed WITHOUT ANY WARRANTY and without even the
     implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
   CHANGE HISTORY:
 
+    11 September 2014 -- added missing checks for LAS 1.4 files and points
     27 July 2011 -- added capability to create a difference output file
     2 December 2010 -- updated to merely warn when the point scaling is off  
     12 March 2009 -- updated to ask for input if started without arguments 
@@ -285,8 +286,6 @@ int main(int argc, char *argv[])
     {
       char printstring[128];
     
-      fprintf(stderr, "headers are different\n");
-
       LASheader* lasheader1 = &(lasreader1->header);
       LASheader* lasheader2 = &(lasreader2->header);
 
@@ -297,9 +296,9 @@ int main(int argc, char *argv[])
         fprintf(stderr, "  different file_signature: '%4s' '%4s'\n", lasheader1->file_signature, lasheader2->file_signature);
         different_header++;
       }
-      if (lasheader1->file_source_id != lasheader2->file_source_id)
+      if (lasheader1->file_source_ID != lasheader2->file_source_ID)
       {
-        fprintf(stderr, "  different file_source_id: %d %d\n", lasheader1->file_source_id, lasheader2->file_source_id);
+        fprintf(stderr, "  different file_source_ID: %d %d\n", lasheader1->file_source_ID, lasheader2->file_source_ID);
         different_header++;
       }
       if (lasheader1->global_encoding != lasheader2->global_encoding)
@@ -365,6 +364,7 @@ int main(int argc, char *argv[])
       if (lasheader1->point_data_format != lasheader2->point_data_format)
       {
         fprintf(stderr, "  different point_data_format: %d %d\n", lasheader1->point_data_format, lasheader2->point_data_format);
+        different_header++;
       }
       if (lasheader1->point_data_record_length != lasheader2->point_data_record_length)
       {
@@ -376,10 +376,13 @@ int main(int argc, char *argv[])
         fprintf(stderr, "  different number_of_point_records: %d %d\n", lasheader1->number_of_point_records, lasheader2->number_of_point_records);
         different_header++;
       }
-      if (lasheader1->number_of_points_by_return[0] != lasheader2->number_of_points_by_return[0] || lasheader1->number_of_points_by_return[1] != lasheader2->number_of_points_by_return[1] || lasheader1->number_of_points_by_return[2] != lasheader2->number_of_points_by_return[2] || lasheader1->number_of_points_by_return[3] != lasheader2->number_of_points_by_return[3] || lasheader1->number_of_points_by_return[4] != lasheader2->number_of_points_by_return[4])
+      for (i = 0; i < 5; i++)
       {
-        fprintf(stderr, "  different number_of_points_by_return: (%d,%d,%d,%d,%d) (%d,%d,%d,%d,%d)\n", lasheader1->number_of_points_by_return[0], lasheader1->number_of_points_by_return[1], lasheader1->number_of_points_by_return[2], lasheader1->number_of_points_by_return[3], lasheader1->number_of_points_by_return[4], lasheader2->number_of_points_by_return[0], lasheader2->number_of_points_by_return[1], lasheader2->number_of_points_by_return[2], lasheader2->number_of_points_by_return[3], lasheader2->number_of_points_by_return[4]);
-        different_header++;
+        if (lasheader1->number_of_points_by_return[i] != lasheader2->number_of_points_by_return[i])
+        {
+          fprintf(stderr, "  different number_of_points_by_return[%d]: %u %u\n", i, lasheader1->number_of_points_by_return[i], lasheader2->number_of_points_by_return[i]);
+          different_header++;
+        }
       }
       if (lasheader1->x_scale_factor != lasheader2->x_scale_factor)
       {
@@ -403,16 +406,19 @@ int main(int argc, char *argv[])
       {
         lidardouble2string(printstring, lasheader1->x_offset, lasheader2->x_offset); fprintf(stderr, "  WARNING: different x_offset: %s\n", printstring);
         scaled_offset_difference = true;
+        different_header++;
       }
       if (lasheader1->y_offset != lasheader2->y_offset)
       {
         lidardouble2string(printstring, lasheader1->y_offset, lasheader2->y_offset); fprintf(stderr, "  WARNING: different y_offset: %s\n", printstring);
         scaled_offset_difference = true;
+        different_header++;
       }
       if (lasheader1->z_offset != lasheader2->z_offset)
       {
         lidardouble2string(printstring, lasheader1->z_offset, lasheader2->z_offset); fprintf(stderr, "  WARNING: different z_offset: %s\n", printstring);
         scaled_offset_difference = true;
+        different_header++;
       }
       if (lasheader1->max_x != lasheader2->max_x)
       {
@@ -446,8 +452,31 @@ int main(int argc, char *argv[])
       }
       if (lasheader1->start_of_waveform_data_packet_record != lasheader2->start_of_waveform_data_packet_record)
       {
-        fprintf(stderr, "  different start_of_waveform_data_packet_record: %d %d\n", (I32)lasheader1->start_of_waveform_data_packet_record, (I32)lasheader2->start_of_waveform_data_packet_record);
+        fprintf(stderr, "  different start_of_waveform_data_packet_record: %u %u\n", (U32)lasheader1->start_of_waveform_data_packet_record, (U32)lasheader2->start_of_waveform_data_packet_record);
         different_header++;
+      }
+      if (lasheader1->start_of_first_extended_variable_length_record != lasheader2->start_of_first_extended_variable_length_record)
+      {
+        fprintf(stderr, "  different start_of_first_extended_variable_length_record: %u %u\n", (U32)lasheader1->start_of_first_extended_variable_length_record, (U32)lasheader2->start_of_first_extended_variable_length_record);
+        different_header++;
+      }
+      if (lasheader1->number_of_extended_variable_length_records != lasheader2->number_of_extended_variable_length_records)
+      {
+        fprintf(stderr, "  different number_of_extended_variable_length_records: %d %d\n", lasheader1->number_of_extended_variable_length_records, lasheader2->number_of_extended_variable_length_records);
+        different_header++;
+      }
+      if (lasheader1->extended_number_of_point_records != lasheader2->extended_number_of_point_records)
+      {
+        fprintf(stderr, "  different start_of_waveform_data_packet_record: %u %u\n", (U32)lasheader1->start_of_waveform_data_packet_record, (U32)lasheader2->start_of_waveform_data_packet_record);
+        different_header++;
+      }
+      for (i = 0; i < 15; i++)
+      {
+        if (lasheader1->extended_number_of_points_by_return[i] != lasheader2->extended_number_of_points_by_return[i])
+        {
+          fprintf(stderr, "  different extended_number_of_points_by_return[%d]: %u %u\n", i, (U32)lasheader1->extended_number_of_points_by_return[i], (U32)lasheader2->extended_number_of_points_by_return[i]);
+          different_header++;
+        }
       }
       if (fatal_difference)
       {
@@ -484,22 +513,27 @@ int main(int argc, char *argv[])
       {
         if (lasreader1->header.vlrs[i].reserved != lasreader2->header.vlrs[i].reserved)
         {
+          different_header++;
           fprintf(stderr, "variable length record %d reserved field is different: %d %d\n", i, lasreader1->header.vlrs[i].reserved, lasreader2->header.vlrs[i].reserved);
         }
         if (memcmp(lasreader1->header.vlrs[i].user_id, lasreader2->header.vlrs[i].user_id, 16) != 0)
         {
+          different_header++;
           fprintf(stderr, "variable length record %d user_id field is different: '%s' '%s'\n", i, lasreader1->header.vlrs[i].user_id, lasreader2->header.vlrs[i].user_id);
         }
         if (lasreader1->header.vlrs[i].record_id != lasreader2->header.vlrs[i].record_id)
         {
+          different_header++;
           fprintf(stderr, "variable length record %d record_id field is different: %d %d\n", i, lasreader1->header.vlrs[i].record_id, lasreader2->header.vlrs[i].record_id);
         }
         if (lasreader1->header.vlrs[i].record_length_after_header != lasreader2->header.vlrs[i].record_length_after_header)
         {
+          different_header++;
           fprintf(stderr, "variable length record %d record_length_after_header field is different: %d %d\n", i, lasreader1->header.vlrs[i].record_length_after_header, lasreader2->header.vlrs[i].record_length_after_header);
         }
         if (memcmp(lasreader1->header.vlrs[i].description, lasreader2->header.vlrs[i].description, 32) != 0)
         {
+          different_header++;
           fprintf(stderr, "variable length record %d description field is different: '%s' '%s'\n", i, lasreader1->header.vlrs[i].description, lasreader2->header.vlrs[i].description);
         }
         if (memcmp(lasreader1->header.vlrs[i].data, lasreader2->header.vlrs[i].data, lasreader1->header.vlrs[i].record_length_after_header))
@@ -542,10 +576,9 @@ int main(int argc, char *argv[])
     }
 
     if (different_header)
-      fprintf(stderr, "headers have %d differences.\n", different_header);
+      fprintf(stderr, "headers have %d difference%s.\n", different_header, (different_header > 1 ? "s" : ""));
     else
       fprintf(stderr, "headers are identical.\n");
-
 
     // maybe we should create a difference file
 
@@ -558,7 +591,7 @@ int main(int argc, char *argv[])
       // prepare the header
       memset(lasreader1->header.system_identifier, 0, 32);
       memset(lasreader1->header.generating_software, 0, 32);
-      sprintf(lasreader1->header.system_identifier, "LAStools (c) by Martin Isenburg");
+      sprintf(lasreader1->header.system_identifier, "LAStools (c) by rapidlasso GmbH");
       sprintf(lasreader1->header.generating_software, "lasdiff (version %d)", LAS_TOOLS_VERSION);
       laswriter = laswriteopener.open(&lasreader1->header);
       if (laswriter == 0)
@@ -605,7 +638,7 @@ int main(int argc, char *argv[])
                 diff = lasreader1->get_x() - lasreader2->get_x();
                 if (diff < 0) diff = -diff;
                 if (diff > max_diff_x) max_diff_x = diff;
-                if (different_scaled_offset_coordinates < 9) fprintf(stderr, "  x: %d %d scaled offset x %g %g\n", lasreader1->point.x, lasreader2->point.x, lasreader1->get_x(), lasreader2->get_x());
+                if (different_scaled_offset_coordinates < 9) fprintf(stderr, "  x: %d %d scaled offset x %g %g\n", lasreader1->point.get_X(), lasreader2->point.get_X(), lasreader1->get_x(), lasreader2->get_x());
                 different_scaled_offset_coordinates++;
               }
               if (lasreader1->get_y() != lasreader2->get_y())
@@ -613,7 +646,7 @@ int main(int argc, char *argv[])
                 diff = lasreader1->get_y() - lasreader2->get_y();
                 if (diff < 0) diff = -diff;
                 if (diff > max_diff_y) max_diff_y = diff;
-                if (different_scaled_offset_coordinates < 9) fprintf(stderr, "  y: %d %d scaled offset y %g %g\n", lasreader1->point.y, lasreader2->point.y, lasreader1->get_y(), lasreader2->get_y());
+                if (different_scaled_offset_coordinates < 9) fprintf(stderr, "  y: %d %d scaled offset y %g %g\n", lasreader1->point.get_Y(), lasreader2->point.get_Y(), lasreader1->get_y(), lasreader2->get_y());
                 different_scaled_offset_coordinates++;
               }
               if (lasreader1->get_z() != lasreader2->get_z())
@@ -628,25 +661,25 @@ int main(int argc, char *argv[])
                     max_diff_z = diff;
                   }
                 }
-                if (different_scaled_offset_coordinates < 9) fprintf(stderr, "  z: %d %d scaled offset z %g %g\n", lasreader1->point.z, lasreader2->point.z, lasreader1->get_z(), lasreader2->get_z());
+                if (different_scaled_offset_coordinates < 9) fprintf(stderr, "  z: %d %d scaled offset z %g %g\n", lasreader1->point.get_Z(), lasreader2->point.get_Z(), lasreader1->get_z(), lasreader2->get_z());
                 different_scaled_offset_coordinates++;
               }
             }
             else 
             {
-              if (lasreader1->point.x != lasreader2->point.x)
+              if (lasreader1->point.get_X() != lasreader2->point.get_X())
               {
-                if (different_points < shutup) fprintf(stderr, "  x: %d %d\n", lasreader1->point.x, lasreader2->point.x);
+                if (different_points < shutup) fprintf(stderr, "  x: %d %d\n", lasreader1->point.get_X(), lasreader2->point.get_X());
                 difference = true;
               }
-              if (lasreader1->point.y != lasreader2->point.y)
+              if (lasreader1->point.get_Y() != lasreader2->point.get_Y())
               {
-                if (different_points < shutup) fprintf(stderr, "  y: %d %d\n", lasreader1->point.y, lasreader2->point.y);
+                if (different_points < shutup) fprintf(stderr, "  y: %d %d\n", lasreader1->point.get_Y(), lasreader2->point.get_Y());
                 difference = true;
               }
-              if (lasreader1->point.z != lasreader2->point.z)
+              if (lasreader1->point.get_Z() != lasreader2->point.get_Z())
               {
-                if (different_points < shutup) fprintf(stderr, "  z: %d %d\n", lasreader1->point.z, lasreader2->point.z);
+                if (different_points < shutup) fprintf(stderr, "  z: %d %d\n", lasreader1->point.get_Z(), lasreader2->point.get_Z());
                 difference = true;
               }
             }
@@ -660,9 +693,9 @@ int main(int argc, char *argv[])
               if (different_points < shutup) fprintf(stderr, "  return_number: %d %d\n", lasreader1->point.return_number, lasreader2->point.return_number);
               difference = true;
             }
-            if (lasreader1->point.number_of_returns_of_given_pulse != lasreader2->point.number_of_returns_of_given_pulse)
+            if (lasreader1->point.number_of_returns != lasreader2->point.number_of_returns)
             {
-              if (different_points < shutup) fprintf(stderr, "  number_of_returns_of_given_pulse: %d %d\n", lasreader1->point.number_of_returns_of_given_pulse, lasreader2->point.number_of_returns_of_given_pulse);
+              if (different_points < shutup) fprintf(stderr, "  number_of_returns: %d %d\n", lasreader1->point.number_of_returns, lasreader2->point.number_of_returns);
               difference = true;
             }
             if (lasreader1->point.scan_direction_flag != lasreader2->point.scan_direction_flag)
@@ -675,9 +708,24 @@ int main(int argc, char *argv[])
               if (different_points < shutup) fprintf(stderr, "  edge_of_flight_line: %d %d\n", lasreader1->point.edge_of_flight_line, lasreader2->point.edge_of_flight_line);
               difference = true;
             }
-            if (lasreader1->point.classification != lasreader2->point.classification)
+            if (lasreader1->point.get_classification() != lasreader2->point.get_classification())
             {
-              if (different_points < shutup) fprintf(stderr, "  classification: %d %d\n", lasreader1->point.classification, lasreader2->point.classification);
+              if (different_points < shutup) fprintf(stderr, "  classification: %d %d\n", lasreader1->point.get_classification(), lasreader2->point.get_classification());
+              difference = true;
+            }
+            if (lasreader1->point.get_synthetic_flag() != lasreader2->point.get_synthetic_flag())
+            {
+              if (different_points < shutup) fprintf(stderr, "  synthetic_flag: %d %d\n", lasreader1->point.get_synthetic_flag(), lasreader2->point.get_synthetic_flag());
+              difference = true;
+            }
+            if (lasreader1->point.get_keypoint_flag() != lasreader2->point.get_keypoint_flag())
+            {
+              if (different_points < shutup) fprintf(stderr, "  keypoint_flag: %d %d\n", lasreader1->point.get_keypoint_flag(), lasreader2->point.get_keypoint_flag());
+              difference = true;
+            }
+            if (lasreader1->point.get_withheld_flag() != lasreader2->point.get_withheld_flag())
+            {
+              if (different_points < shutup) fprintf(stderr, "  withheld_flag: %d %d\n", lasreader1->point.get_withheld_flag(), lasreader2->point.get_withheld_flag());
               difference = true;
             }
             if (lasreader1->point.scan_angle_rank != lasreader2->point.scan_angle_rank)
@@ -707,10 +755,21 @@ int main(int argc, char *argv[])
           }
           if (lasreader1->point.have_rgb)
           {
-            if (memcmp((const void*)&(lasreader1->point.rgb), (const void*)&(lasreader2->point.rgb), sizeof(short[3])))
+            if (lasreader1->point.have_nir)
             {
-              if (different_points < shutup) fprintf(stderr, "rgb of point %u of %u is different: (%d %d %d) != (%d %d %d)\n", (U32)lasreader1->p_count, (U32)lasreader1->npoints, lasreader1->point.rgb[0], lasreader1->point.rgb[1], lasreader1->point.rgb[2], lasreader2->point.rgb[0], lasreader2->point.rgb[1], lasreader2->point.rgb[2]);
-              difference = true;
+              if (memcmp((const void*)&(lasreader1->point.rgb), (const void*)&(lasreader2->point.rgb), sizeof(short[4])))
+              {
+                if (different_points < shutup) fprintf(stderr, "RGBI of point %u of %u is different: (%d %d %d %d) != (%d %d %d %d)\n", (U32)lasreader1->p_count, (U32)lasreader1->npoints, lasreader1->point.rgb[0], lasreader1->point.rgb[1], lasreader1->point.rgb[2], lasreader1->point.rgb[3], lasreader2->point.rgb[0], lasreader2->point.rgb[1], lasreader2->point.rgb[2], lasreader2->point.rgb[3]);
+                difference = true;
+              }
+            }
+            else
+            {
+              if (memcmp((const void*)&(lasreader1->point.rgb), (const void*)&(lasreader2->point.rgb), sizeof(short[3])))
+              {
+                if (different_points < shutup) fprintf(stderr, "RGB of point %u of %u is different: (%d %d %d) != (%d %d %d)\n", (U32)lasreader1->p_count, (U32)lasreader1->npoints, lasreader1->point.rgb[0], lasreader1->point.rgb[1], lasreader1->point.rgb[2], lasreader2->point.rgb[0], lasreader2->point.rgb[1], lasreader2->point.rgb[2]);
+                difference = true;
+              }
             }
           }
           if (lasreader1->point.have_wavepacket)
@@ -718,6 +777,47 @@ int main(int argc, char *argv[])
             if (memcmp((const void*)&(lasreader1->point.wavepacket), (const void*)&(lasreader2->point.wavepacket), sizeof(LASwavepacket)))
             {
               if (different_points < shutup) fprintf(stderr, "wavepacket of point %u of %u is different: (%d %d %d %g %g %g %g) != (%d %d %d %g %g %g %g)\n", (U32)lasreader1->p_count, (U32)lasreader1->npoints, lasreader1->point.wavepacket.getIndex(), (I32)lasreader1->point.wavepacket.getOffset(), lasreader1->point.wavepacket.getSize(), lasreader1->point.wavepacket.getLocation(), lasreader1->point.wavepacket.getXt(), lasreader1->point.wavepacket.getYt(), lasreader1->point.wavepacket.getZt(), lasreader2->point.wavepacket.getIndex(), (I32)lasreader2->point.wavepacket.getOffset(), lasreader2->point.wavepacket.getSize(), lasreader2->point.wavepacket.getLocation(), lasreader2->point.wavepacket.getXt(), lasreader2->point.wavepacket.getYt(), lasreader2->point.wavepacket.getZt());
+              difference = true;
+            }
+          }
+          if (lasreader1->point.extra_bytes_number)
+          {
+            if (memcmp((const void*)lasreader1->point.extra_bytes, (const void*)lasreader2->point.extra_bytes, lasreader1->point.extra_bytes_number))
+            {
+              if (different_points < shutup) fprintf(stderr, "%d extra_bytes of point %u of %u are different: %d %d %d %d != %d %d %d %d\n", lasreader1->point.extra_bytes_number,  (U32)lasreader1->p_count, (U32)lasreader1->npoints, lasreader1->point.extra_bytes[0], lasreader1->point.extra_bytes[1], lasreader1->point.extra_bytes[2], lasreader1->point.extra_bytes[3], lasreader2->point.extra_bytes[0], lasreader2->point.extra_bytes[1], lasreader2->point.extra_bytes[2], lasreader2->point.extra_bytes[3]);
+              difference = true;
+            }
+          }
+          if (lasreader1->point.extended_point_type)
+          {
+            if (lasreader1->point.extended_scan_angle != lasreader2->point.extended_scan_angle)
+            {
+              if (different_points < shutup) fprintf(stderr, "  extended_scan_angle: %d %d (point index %u)\n", lasreader1->point.extended_scan_angle, lasreader2->point.extended_scan_angle, (U32)(lasreader1->p_count-1));
+              difference = true;
+            }
+            if (lasreader1->point.extended_scanner_channel != lasreader2->point.extended_scanner_channel)
+            {
+              if (different_points < shutup) fprintf(stderr, "  extended_scanner_channel: %d %d\n", lasreader1->point.extended_scanner_channel, lasreader2->point.extended_scanner_channel);
+              difference = true;
+            }
+            if (lasreader1->point.extended_classification_flags != lasreader2->point.extended_classification_flags)
+            {
+              if (different_points < shutup) fprintf(stderr, "  extended_classification_flags: %d %d\n", lasreader1->point.extended_classification_flags, lasreader2->point.extended_classification_flags);
+              difference = true;
+            }
+            if (lasreader1->point.extended_classification != lasreader2->point.extended_classification)
+            {
+              if (different_points < shutup) fprintf(stderr, "  extended_classification: %d %d\n", lasreader1->point.extended_classification, lasreader2->point.extended_classification);
+              difference = true;
+            }
+            if (lasreader1->point.extended_return_number != lasreader2->point.extended_return_number)
+            {
+              if (different_points < shutup) fprintf(stderr, "  extended_return_number: %d %d\n", lasreader1->point.extended_return_number, lasreader2->point.extended_return_number);
+              difference = true;
+            }
+            if (lasreader1->point.extended_number_of_returns != lasreader2->point.extended_number_of_returns)
+            {
+              if (different_points < shutup) fprintf(stderr, "  extended_number_of_returns: %d %d\n", lasreader1->point.extended_number_of_returns, lasreader2->point.extended_number_of_returns);
               difference = true;
             }
           }
@@ -743,7 +843,7 @@ int main(int argc, char *argv[])
       if (difference)
       {
         different_points++;
-        if (different_points == shutup) fprintf(stderr, "more than %d points are different ... shutting up.\n", shutup);
+        if (different_points == shutup) fprintf(stderr, "already %d points are different ... shutting up.\n", shutup);
       }
       if (laswriter)
       {
@@ -787,12 +887,22 @@ int main(int argc, char *argv[])
 
     if (!different_header && !different_points && !different_scaled_offset_coordinates) fprintf(stderr, "files are identical. ");
 
+    if (lasreader1->p_count == lasreader2->p_count)
+    {
 #ifdef _WIN32
-    fprintf(stderr, "both have %I64d points. took %g secs.\n", lasreader1->p_count, taketime()-start_time);
+      fprintf(stderr, "both have %I64d points. took %g secs.\n", lasreader1->p_count, taketime()-start_time);
 #else
-    fprintf(stderr, "both have %lld points. took %g secs.\n", lasreader1->p_count, taketime()-start_time);
+      fprintf(stderr, "both have %lld points. took %g secs.\n", lasreader1->p_count, taketime()-start_time);
 #endif
-
+    }
+    else
+    {
+#ifdef _WIN32
+      fprintf(stderr, "one has %I64d the other %I64d points. took %g secs.\n", lasreader1->p_count, lasreader2->p_count, taketime()-start_time);
+#else
+      fprintf(stderr, "one has %lld the other %lld points. took %g secs.\n", lasreader1->p_count, lasreader2->p_count, taketime()-start_time);
+#endif
+    }
     lasreader1->close();
     delete lasreader1;
     free(file_name1);

@@ -17,7 +17,7 @@
 
     This is free software; you can redistribute and/or modify it under the
     terms of the GNU Lesser General Licence as published by the Free Software
-    Foundation except for (R). See the LICENSE.txt file for more information.
+    Foundation. See the LICENSE.txt file for more information.
 
     This software is distributed WITHOUT ANY WARRANTY and without even the
     implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
@@ -158,19 +158,14 @@ BOOL LASreaderBuffered::open()
   // populate the merged header
   header = lasreader->header;
 
-  // zero the pointers of the other header so they don't get deallocated twice
-  lasreader->header.user_data_in_header = 0;
-  lasreader->header.vlrs = 0;
-  lasreader->header.laszip = 0;
-  lasreader->header.vlr_lastiling = 0;
-  lasreader->header.vlr_lasoriginal = 0;
-  lasreader->header.user_data_after_header = 0;
+  // unlink pointers in other header so their data does not get deallocated twice
+  lasreader->header.unlink();
 
-  // special check for extra attributes
-  if (header.number_extra_attributes)
+  // special check for attributes in extra bytes
+  if (header.number_attributes)
   {
-    header.number_extra_attributes = 0;
-    header.init_extra_attributes(lasreader->header.number_extra_attributes, lasreader->header.extra_attributes);
+    header.number_attributes = 0;
+    header.init_attributes(lasreader->header.number_attributes, lasreader->header.attributes);
   }
 
   // initialize the point with the header info
@@ -192,73 +187,70 @@ BOOL LASreaderBuffered::open()
 
     lasreadopener_neighbors.set_inside_rectangle(header.min_x - buffer_size, header.min_y - buffer_size, header.max_x + buffer_size, header.max_y + buffer_size);
 
-    // store current counts and bounding box in LASbufferVLR
+    // store current counts and bounding box in LASoriginal VLR
 
     header.set_lasoriginal();
 
-    while (lasreadopener_neighbors.active())
+    LASreader* lasreader_neighbor = lasreadopener_neighbors.open();
+    if (lasreader_neighbor == 0)
     {
-      LASreader* lasreader_neighbor = lasreadopener_neighbors.open();
-      if (lasreader_neighbor == 0)
-      {
-        fprintf(stderr, "ERROR: opening neighbor '%s'\n", lasreadopener_neighbors.get_file_name());
-        return FALSE;
-      }
-
-      // a point type change could be problematic
-      if (header.point_data_format != lasreader_neighbor->header.point_data_format)
-      {
-        if (!point_type_change) fprintf(stderr, "WARNING: files have different point types: %d vs %d\n", header.point_data_format, lasreader_neighbor->header.point_data_format);
-        point_type_change = TRUE;
-      }
-      // a point size change could be problematic
-      if (header.point_data_record_length != lasreader_neighbor->header.point_data_record_length)
-      {
-        if (!point_size_change) fprintf(stderr, "WARNING: files have different point sizes: %d vs %d\n", header.point_data_record_length, lasreader_neighbor->header.point_data_record_length);
-        point_size_change = TRUE;
-      }
-
-      while (lasreader_neighbor->read_point())
-      {
-        // copy
-        point = lasreader_neighbor->point;
-        // copy_point_to_buffer
-        copy_point_to_buffer();
-        // increment number of points by return
-        if (point.number_of_returns_of_given_pulse == 1)
-        {
-          header.number_of_points_by_return[0]++;
-        }
-        else if (point.number_of_returns_of_given_pulse == 2)
-        {
-          header.number_of_points_by_return[1]++;
-        }
-        else if (point.number_of_returns_of_given_pulse == 3)
-        {
-          header.number_of_points_by_return[2]++;
-        }
-        else if (point.number_of_returns_of_given_pulse == 4)
-        {
-          header.number_of_points_by_return[3]++;
-        }
-        else if (point.number_of_returns_of_given_pulse == 5)
-        {
-          header.number_of_points_by_return[4]++;
-        }
-        // grow bounding box
-        xyz = point.get_x();
-        if (header.min_x > xyz) header.min_x = xyz;
-        else if (header.max_x < xyz) header.max_x = xyz;
-        xyz = point.get_y();
-        if (header.min_y > xyz) header.min_y = xyz;
-        else if (header.max_y < xyz) header.max_y = xyz;
-        xyz = point.get_z();
-        if (header.min_z > xyz) header.min_z = xyz;
-        else if (header.max_z < xyz) header.max_z = xyz;
-      }
-      lasreader_neighbor->close();
-      delete lasreader_neighbor;
+      fprintf(stderr, "ERROR: opening neighbor '%s'\n", lasreadopener_neighbors.get_file_name());
+      return FALSE;
     }
+
+    // a point type change could be problematic
+    if (header.point_data_format != lasreader_neighbor->header.point_data_format)
+    {
+      if (!point_type_change) fprintf(stderr, "WARNING: files have different point types: %d vs %d\n", header.point_data_format, lasreader_neighbor->header.point_data_format);
+      point_type_change = TRUE;
+    }
+    // a point size change could be problematic
+    if (header.point_data_record_length != lasreader_neighbor->header.point_data_record_length)
+    {
+      if (!point_size_change) fprintf(stderr, "WARNING: files have different point sizes: %d vs %d\n", header.point_data_record_length, lasreader_neighbor->header.point_data_record_length);
+      point_size_change = TRUE;
+    }
+
+    while (lasreader_neighbor->read_point())
+    {
+      // copy
+      point = lasreader_neighbor->point;
+      // copy_point_to_buffer
+      copy_point_to_buffer();
+      // increment number of points by return
+      if (point.return_number == 1)
+      {
+        header.number_of_points_by_return[0]++;
+      }
+      else if (point.return_number == 2)
+      {
+        header.number_of_points_by_return[1]++;
+      }
+      else if (point.return_number == 3)
+      {
+        header.number_of_points_by_return[2]++;
+      }
+      else if (point.return_number == 4)
+      {
+        header.number_of_points_by_return[3]++;
+      }
+      else if (point.return_number == 5)
+      {
+        header.number_of_points_by_return[4]++;
+      }
+      // grow bounding box
+      xyz = point.get_x();
+      if (header.min_x > xyz) header.min_x = xyz;
+      else if (header.max_x < xyz) header.max_x = xyz;
+      xyz = point.get_y();
+      if (header.min_y > xyz) header.min_y = xyz;
+      else if (header.max_y < xyz) header.max_y = xyz;
+      xyz = point.get_z();
+      if (header.min_z > xyz) header.min_z = xyz;
+      else if (header.max_z < xyz) header.max_z = xyz;
+    }
+    lasreader_neighbor->close();
+    delete lasreader_neighbor;
 
     header.number_of_point_records += buffered_points;
 

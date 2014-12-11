@@ -159,6 +159,18 @@ Package=<4>
 
 ###############################################################################
 
+Project: "lascolor"=.\src_full\lascolor.dsp - Package Owner=<4>
+
+Package=<5>
+{{{
+}}}
+
+Package=<4>
+{{{
+}}}
+
+###############################################################################
+
 Project: "lascontrol"=.\src_full\lascontrol.dsp - Package Owner=<4>
 
 Package=<5>
@@ -279,6 +291,18 @@ Package=<4>
 
 ###############################################################################
 
+Project: "lasoptimize"=.\src\lasoptimize.dsp - Package Owner=<4>
+
+Package=<5>
+{{{
+}}}
+
+Package=<4>
+{{{
+}}}
+
+###############################################################################
+
 Project: "lasoverage"=.\src_full\lasoverage.dsp - Package Owner=<4>
 
 Package=<5>
@@ -303,7 +327,31 @@ Package=<4>
 
 ###############################################################################
 
+Project: "lasplanes"=.\src_full\lasplanes.dsp - Package Owner=<4>
+
+Package=<5>
+{{{
+}}}
+
+Package=<4>
+{{{
+}}}
+
+###############################################################################
+
 Project: "lasprecision"=.\src\lasprecision.dsp - Package Owner=<4>
+
+Package=<5>
+{{{
+}}}
+
+Package=<4>
+{{{
+}}}
+
+###############################################################################
+
+Project: "lasprofile"=.\src_full\lasprofile.dsp - Package Owner=<4>
 
 Package=<5>
 {{{
@@ -364,6 +412,18 @@ Package=<4>
 ###############################################################################
 
 Project: "lastool"=.\src_full\lastool.dsp - Package Owner=<4>
+
+Package=<5>
+{{{
+}}}
+
+Package=<4>
+{{{
+}}}
+
+###############################################################################
+
+Project: "lastrack"=.\src_full\lastrack.dsp - Package Owner=<4>
 
 Package=<5>
 {{{

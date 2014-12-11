@@ -17,7 +17,7 @@
 
     This is free software; you can redistribute and/or modify it under the
     terms of the GNU Lesser General Licence as published by the Free Software
-    Foundation except for (R). See the LICENSE.txt file for more information.
+    Foundation. See the LICENSE.txt file for more information.
 
     This software is distributed WITHOUT ANY WARRANTY and without even the
     implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
@@ -189,11 +189,11 @@ BOOL LASwriterBIN::write_point(const LASpoint* point)
 {
   U16 echo;
 
-  if (point->number_of_returns_of_given_pulse <= 1)
+  if (point->number_of_returns <= 1)
     echo = 0;
   else if (point->return_number == 1)
     echo = 1;
-  else if (point->return_number >= point->number_of_returns_of_given_pulse)
+  else if (point->return_number >= point->number_of_returns)
     echo = 3;
   else
     echo = 2;

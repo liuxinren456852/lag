@@ -17,7 +17,7 @@
 
     This is free software; you can redistribute and/or modify it under the
     terms of the GNU Lesser General Licence as published by the Free Software
-    Foundation except for (R). See the LICENSE.txt file for more information.
+    Foundation. See the LICENSE.txt file for more information.
 
     This software is distributed WITHOUT ANY WARRANTY and without even the
     implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
@@ -36,8 +36,8 @@
 class LAScriterion
 {
 public:
-  virtual const char * name() const = 0;
-  virtual int get_command(char* string) const = 0;
+  virtual const CHAR * name() const = 0;
+  virtual I32 get_command(CHAR* string) const = 0;
   virtual BOOL filter(const LASpoint* point) = 0;
   virtual void reset(){};
   virtual ~LAScriterion(){};
@@ -50,7 +50,7 @@ public:
   void usage() const;
   void clean();
   BOOL parse(int argc, char* argv[]);
-  I32 unparse(char* string) const;
+  I32 unparse(CHAR* string) const;
   inline BOOL active() const { return (num_criteria != 0); };
 
   void addClipCircle(F64 x, F64 y, F64 radius);
@@ -69,7 +69,7 @@ private:
   U32 num_criteria;
   U32 alloc_criteria;
   LAScriterion** criteria;
-  int* counters;
+  I32* counters;
 };
 
 #endif

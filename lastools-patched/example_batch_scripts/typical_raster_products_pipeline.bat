@@ -65,7 +65,7 @@ lasheight -i %INPUT_TILES%\*.laz ^
 
 :: create canopy height raster (with resolution of STEP meters)
 
-lasgrid -i %TEMP_FILES%\height_normalized\*.laz -merged -reoffset 255000 1694000 0 ^
+lasgrid -i %TEMP_FILES%\height_normalized\*.laz -merged ^
         -highest -step %STEP% -false -set_min_max 0 10 -fill 2 ^
         -o %OUTPUT_FILES%\canopy.png
 

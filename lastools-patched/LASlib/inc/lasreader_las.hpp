@@ -13,17 +13,19 @@
 
   COPYRIGHT:
 
-    (c) 2007-2012, martin isenburg, rapidlasso - tools to catch reality
+    (c) 2007-2014, martin isenburg, rapidlasso - fast tools to catch reality
 
     This is free software; you can redistribute and/or modify it under the
     terms of the GNU Lesser General Licence as published by the Free Software
-    Foundation except for (R). See the LICENSE.txt file for more information.
+    Foundation. See the LICENSE.txt file for more information.
 
     This software is distributed WITHOUT ANY WARRANTY and without even the
     implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
   
   CHANGE HISTORY:
   
+    13 October 2014 -- changed default IO buffer size with setvbuf() to 262144
+    27 August 2014 -- peek bounding box to open many file with lasreadermerged
      9 July 2012 -- fixed crash that occured when input had a corrupt VLRs
      5 November 2011 -- changed default IO buffer size with setvbuf() to 65536
     21 January 2011 -- adapted from lasreader to create abstract reader class
@@ -54,9 +56,9 @@ class LASreaderLAS : public LASreader
 {
 public:
 
-  BOOL open(const char* file_name, U32 io_buffer_size=65536);
-  BOOL open(FILE* file);
-  BOOL open(istream& stream);
+  BOOL open(const char* file_name, I32 io_buffer_size=LAS_TOOLS_IO_IBUFFER_SIZE, BOOL peek_only=FALSE);
+  BOOL open(FILE* file, BOOL peek_only=FALSE);
+  BOOL open(istream& stream, BOOL peek_only=FALSE);
 
   I32 get_format() const;
 
@@ -69,7 +71,7 @@ public:
   virtual ~LASreaderLAS();
 
 protected:
-  virtual BOOL open(ByteStreamIn* stream);
+  virtual BOOL open(ByteStreamIn* stream, BOOL peek_only=FALSE);
   virtual BOOL read_point_default();
 
 private:
@@ -84,7 +86,7 @@ public:
   LASreaderLASrescale(F64 x_scale_factor, F64 y_scale_factor, F64 z_scale_factor);
 
 protected:
-  virtual BOOL open(ByteStreamIn* stream);
+  virtual BOOL open(ByteStreamIn* stream, BOOL peek_only=FALSE);
   virtual BOOL read_point_default();
   BOOL rescale_x, rescale_y, rescale_z;
   F64 scale_factor[3];
@@ -98,7 +100,7 @@ public:
   LASreaderLASreoffset(); // auto reoffset
 
 protected:
-  virtual BOOL open(ByteStreamIn* stream);
+  virtual BOOL open(ByteStreamIn* stream, BOOL peek_only=FALSE);
   virtual BOOL read_point_default();
   BOOL auto_reoffset;
   BOOL reoffset_x, reoffset_y, reoffset_z;
@@ -113,7 +115,7 @@ public:
   LASreaderLASrescalereoffset(F64 x_scale_factor, F64 y_scale_factor, F64 z_scale_factor); // auto reoffset
 
 protected:
-  BOOL open(ByteStreamIn* stream);
+  BOOL open(ByteStreamIn* stream, BOOL peek_only=FALSE);
   BOOL read_point_default();
 };
 

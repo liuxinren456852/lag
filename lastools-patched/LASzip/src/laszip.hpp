@@ -47,10 +47,17 @@ typedef __int64   SIGNED_INT64;
 typedef long long SIGNED_INT64;
 #endif
 
+#if defined(_MSC_VER) && \
+    (_MSC_FULL_VER >= 150000000)
+#define LASCopyString _strdup
+#else
+#define LASCopyString strdup
+#endif
+
 #define LASZIP_VERSION_MAJOR                2
 #define LASZIP_VERSION_MINOR                2
 #define LASZIP_VERSION_REVISION             0
-#define LASZIP_VERSION_BUILD_DATE      130817
+#define LASZIP_VERSION_BUILD_DATE      140907
 
 #define LASZIP_COMPRESSOR_NONE              0
 #define LASZIP_COMPRESSOR_POINTWISE         1
@@ -67,6 +74,7 @@ typedef long long SIGNED_INT64;
 
 #define LASZIP_CHUNK_SIZE_DEFAULT           50000
 
+//#include "laszipexport.hpp"
 #define LASZIP_DLL
 
 class LASZIP_DLL LASitem
@@ -117,8 +125,8 @@ public:
   unsigned short version_revision;
   unsigned int options;
   unsigned int chunk_size; 
-  SIGNED_INT64 num_points;  /* not mandatory ... -1 if unknown */
-  SIGNED_INT64 num_bytes;   /* not mandatory ... -1 if unknown */
+  SIGNED_INT64 number_of_special_evlrs; /* must be -1 if unused */
+  SIGNED_INT64 offset_to_special_evlrs; /* must be -1 if unused */
   unsigned short num_items;
   LASitem* items;
 

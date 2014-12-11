@@ -52,4 +52,4 @@ their order then you need to recreate the LAX file.
 
 ---------------
 
-if you find bugs let me (martin.isenburg@gmail.com) know.
+if you find bugs let me (martin.isenburg@rapidlasso.com) know.

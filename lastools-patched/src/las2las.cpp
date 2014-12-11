@@ -6,15 +6,15 @@
   CONTENTS:
   
     This tool reads and writes LIDAR data in the LAS format and is typically
-    used to modify the contents of a LAS file. Examples are clipping the points
-    to those that lie within a certain region specified by a bounding box (-clip),
-    or points that are between a certain height (-clip_z or clip_elev)
+    used to modify the contents of a LAS file. Examples are keeping or dropping
+    those points lying within a certain region (-keep_xy, -drop_x_above, ...),
+    or points with a certain elevation (-keep_z, -drop_z_below, -drop_z_above)
     eliminating points that are the second return (-drop_return 2), that have a
-    scan angle above a certain threshold (-clip_scan_angle_above 5), or that are
-    below a certain intensity (-clip_intensity_below 15).
+    scan angle above a certain threshold (-drop_scan_angle_above 5), or that are
+    below a certain intensity (-drop_intensity_below 15).
     Another typical use may be to extract only first (-first_only) returns or
     only last returns (-last_only). Extracting the first return is actually the
-    same as eliminating all others (e.g. -elim_return 2 -elim_return 3, ...).
+    same as eliminating all others (e.g. -keep_return 2 -keep_return 3, ...).
 
   PROGRAMMERS:
   
@@ -22,11 +22,11 @@
   
   COPYRIGHT:
   
-    (c) 2007-12, martin isenburg, rapidlasso - fast tools to catch reality
+    (c) 2007-14, martin isenburg, rapidlasso - fast tools to catch reality
 
     This is free software; you can redistribute and/or modify it under the
     terms of the GNU Lesser General Licence as published by the Free Software
-    Foundation except for (R). See the LICENSE.txt file for more information.
+    Foundation. See the LICENSE.txt file for more information.
 
     This software is distributed WITHOUT ANY WARRANTY and without even the
     implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
@@ -41,13 +41,13 @@
     18 April 2011 -- can set projection tags or reproject horizontally
     26 January 2011 -- added LAStransform for simply manipulations of points 
     21 January 2011 -- added LASreadOpener and reading of multiple LAS files 
-     3 January 2011 -- added -reoffset & -rescale + -clip_circle via LASfilter
-    10 January 2010 -- added -subseq for clipping a [start, end] interval
+     3 January 2011 -- added -reoffset & -rescale + -keep_circle via LASfilter
+    10 January 2010 -- added -subseq for selecting a [start, end] interval
     10 June 2009 -- added -scale_rgb_down and -scale_rgb_up to scale rgb values
     12 March 2009 -- updated to ask for input if started without arguments 
      9 March 2009 -- added ability to remove user defined headers or vlrs
     17 September 2008 -- updated to deal with LAS format version 1.2
-    17 September 2008 -- allow clipping in double precision and based on z
+    17 September 2008 -- dropping or keeping in double precision and based on z
     10 July 2007 -- created after talking with Linda about the H1B process
   
 ===============================================================================
@@ -68,10 +68,11 @@ static void usage(bool error=false, bool wait=false)
   fprintf(stderr,"las2las -i *.laz -first_only -olaz\n");
   fprintf(stderr,"las2las -i *.las -drop_return 4 5 -olaz\n");
   fprintf(stderr,"las2las -latlong -target_utm 12T -i in.las -o out.las\n");
+  fprintf(stderr,"las2las -i in.laz -target_epsg 2972 -o out.laz\n");
   fprintf(stderr,"las2las -point_type 0 -lof file_list.txt -merged -o out.las\n");
   fprintf(stderr,"las2las -remove_vlr 2 -scale_rgb_up -i in.las -o out.las\n");
-  fprintf(stderr,"las2las -i in.las -clip 630000 4834500 630500 4835000 -clip_z 10 100 -o out.las\n");
-  fprintf(stderr,"las2las -i in.txt -iparse xyzit -clip_circle 630200 4834750 100 -oparse xyzit -o out.txt\n");
+  fprintf(stderr,"las2las -i in.las -keep_xy 630000 4834500 630500 4835000 -keep_z 10 100 -o out.las\n");
+  fprintf(stderr,"las2las -i in.txt -iparse xyzit -keep_circle 630200 4834750 100 -oparse xyzit -o out.txt\n");
   fprintf(stderr,"las2las -i in.las -keep_scan_angle -15 15 -o out.las\n");
   fprintf(stderr,"las2las -i in.las -rescale 0.01 0.01 0.01 -reoffset 0 300000 0 -o out.las\n");
   fprintf(stderr,"las2las -i in.las -set_version 1.2 -keep_gpstime 46.5 47.5 -o out.las\n");
@@ -103,14 +104,19 @@ static double taketime()
 }
 
 // for point type conversions
-const U8 convert_point_type_from_to[6][6] = 
+const U8 convert_point_type_from_to[11][11] = 
 {
-  {  0,  1,  1,  1,  1,  1 },
-  {  0,  0,  1,  1,  1,  1 },
-  {  0,  1,  0,  1,  1,  1 },
-  {  0,  0,  1,  0,  1,  1 },
-  {  0,  0,  1,  1,  0,  1 },
-  {  0,  0,  1,  0,  1,  0 },
+  {  0,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1 },
+  {  0,  0,  1,  1,  1,  1,  1,  1,  1,  1,  1 },
+  {  0,  1,  0,  1,  1,  1,  1,  1,  1,  1,  1 },
+  {  0,  0,  1,  0,  1,  1,  1,  1,  1,  1,  1 },
+  {  0,  0,  1,  1,  0,  1,  1,  1,  1,  1,  1 },
+  {  0,  0,  1,  0,  1,  0,  1,  1,  1,  1,  1 },
+  {  1,  1,  1,  1,  1,  1,  0,  1,  1,  1,  1 },
+  {  1,  1,  1,  1,  1,  1,  1,  0,  1,  1,  1 },
+  {  1,  1,  1,  1,  1,  1,  1,  1,  0,  1,  1 },
+  {  1,  1,  1,  1,  1,  1,  1,  1,  1,  0,  1 },
+  {  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  0 },
 };
 
 #ifdef COMPILE_WITH_GUI
@@ -233,6 +239,7 @@ int main(int argc, char *argv[])
       argv[i][0] = '\0';
 #else
       fprintf(stderr, "WARNING: not compiled with multi-core batching. ignoring '-cores' ...\n");
+      i++;
 #endif
     }
     else if (strcmp(argv[i],"-force") == 0)
@@ -365,7 +372,7 @@ int main(int argc, char *argv[])
       set_point_data_record_length = atoi(argv[i+1]);
       i++;
     }
-    else if (strcmp(argv[i],"-clip_to_bounding_box") == 0) 
+    else if (strcmp(argv[i],"-clip_to_bounding_box") == 0 || strcmp(argv[i],"-clip_to_bb") == 0) 
     {
       clip_to_bounding_box = true;
     }
@@ -605,7 +612,7 @@ int main(int argc, char *argv[])
 
     if (set_point_data_format != -1)
     {
-      if (set_point_data_format < 0 || set_point_data_format >= 6)
+      if (set_point_data_format < 0 || set_point_data_format > 10)
       {
         fprintf(stderr, "ERROR: unknown point_data_format %d\n", set_point_data_format);
         byebye(true);
@@ -637,6 +644,21 @@ int main(int argc, char *argv[])
       case 5:
         lasreader->header.point_data_record_length = 63;
         break;
+      case 6:
+        lasreader->header.point_data_record_length = 30;
+        break;
+      case 7:
+        lasreader->header.point_data_record_length = 36;
+        break;
+      case 8:
+        lasreader->header.point_data_record_length = 38;
+        break;
+      case 9:
+        lasreader->header.point_data_record_length = 59;
+        break;
+      case 10:
+        lasreader->header.point_data_record_length = 67;
+        break;
       }
     }
 
@@ -664,6 +686,21 @@ int main(int argc, char *argv[])
         break;
       case 5:
         num_extra_bytes = set_point_data_record_length - 63;
+        break;
+      case 6:
+        num_extra_bytes = set_point_data_record_length - 30;
+        break;
+      case 7:
+        num_extra_bytes = set_point_data_record_length - 36;
+        break;
+      case 8:
+        num_extra_bytes = set_point_data_record_length - 38;
+        break;
+      case 9:
+        num_extra_bytes = set_point_data_record_length - 59;
+        break;
+      case 10:
+        num_extra_bytes = set_point_data_record_length - 67;
         break;
       }
       if (num_extra_bytes < 0)
@@ -697,6 +734,7 @@ int main(int argc, char *argv[])
     if (remove_all_variable_length_records)
     {
       lasreader->header.clean_vlrs();
+      lasreader->header.clean_evlrs();
     }
     else
     {
@@ -744,7 +782,7 @@ int main(int argc, char *argv[])
         geoprojectionconverter.to_target(point);
         reproject_quantizer->x_scale_factor = geoprojectionconverter.get_target_precision();
         reproject_quantizer->y_scale_factor = geoprojectionconverter.get_target_precision();
-        reproject_quantizer->z_scale_factor = lasreader->header.z_scale_factor;
+        reproject_quantizer->z_scale_factor = geoprojectionconverter.get_target_elevation_precision();
         reproject_quantizer->x_offset = ((I64)((point[0]/reproject_quantizer->x_scale_factor)/10000000))*10000000*reproject_quantizer->x_scale_factor;
         reproject_quantizer->y_offset = ((I64)((point[1]/reproject_quantizer->y_scale_factor)/10000000))*10000000*reproject_quantizer->y_scale_factor;
         reproject_quantizer->z_offset = ((I64)((point[2]/reproject_quantizer->z_scale_factor)/10000000))*10000000*reproject_quantizer->z_scale_factor;
@@ -812,7 +850,7 @@ int main(int argc, char *argv[])
         {
           lasreader->point.compute_coordinates();
           geoprojectionconverter.to_target(lasreader->point.coordinates);
-          lasreader->point.compute_xyz(reproject_quantizer);
+          lasreader->point.compute_XYZ(reproject_quantizer);
         }
         lasinventory.add(&lasreader->point);
       }
@@ -821,12 +859,12 @@ int main(int argc, char *argv[])
       lasreader->header.number_of_point_records = lasinventory.number_of_point_records;
       for (i = 0; i < 5; i++) lasreader->header.number_of_points_by_return[i] = lasinventory.number_of_points_by_return[i+1];
       if (reproject_quantizer) lasreader->header = *reproject_quantizer;
-      lasreader->header.max_x = lasreader->header.get_x(lasinventory.raw_max_x);
-      lasreader->header.min_x = lasreader->header.get_x(lasinventory.raw_min_x);
-      lasreader->header.max_y = lasreader->header.get_y(lasinventory.raw_max_y);
-      lasreader->header.min_y = lasreader->header.get_y(lasinventory.raw_min_y);
-      lasreader->header.max_z = lasreader->header.get_z(lasinventory.raw_max_z);
-      lasreader->header.min_z = lasreader->header.get_z(lasinventory.raw_min_z);
+      lasreader->header.max_x = lasreader->header.get_x(lasinventory.max_X);
+      lasreader->header.min_x = lasreader->header.get_x(lasinventory.min_X);
+      lasreader->header.max_y = lasreader->header.get_y(lasinventory.max_Y);
+      lasreader->header.min_y = lasreader->header.get_y(lasinventory.min_Y);
+      lasreader->header.max_z = lasreader->header.get_z(lasinventory.max_Z);
+      lasreader->header.min_z = lasreader->header.get_z(lasinventory.min_Z);
 
       if (verbose) { fprintf(stderr,"extra pass took %g sec.\n", taketime()-start_time); start_time = taketime(); }
 #ifdef _WIN32
@@ -860,7 +898,7 @@ int main(int argc, char *argv[])
 
     // prepare the header for the surviving points
 
-    strncpy(lasreader->header.system_identifier, "LAStools (c) by Martin Isenburg", 32);
+    strncpy(lasreader->header.system_identifier, "LAStools (c) by rapidlasso GmbH", 32);
     lasreader->header.system_identifier[31] = '\0';
     char temp[64];
     sprintf(temp, "las2las (version %d)", LAS_TOOLS_VERSION);
@@ -920,7 +958,7 @@ int main(int argc, char *argv[])
         {
           lasreader->point.compute_coordinates();
           geoprojectionconverter.to_target(lasreader->point.coordinates);
-          lasreader->point.compute_xyz(reproject_quantizer);
+          lasreader->point.compute_XYZ(reproject_quantizer);
         }
         *point = lasreader->point;
         laswriter->write_point(point);
@@ -948,7 +986,7 @@ int main(int argc, char *argv[])
         {
           lasreader->point.compute_coordinates();
           geoprojectionconverter.to_target(lasreader->point.coordinates);
-          lasreader->point.compute_xyz(reproject_quantizer);
+          lasreader->point.compute_XYZ(reproject_quantizer);
         }
         laswriter->write_point(&lasreader->point);
         // without extra pass we need inventory of surviving points

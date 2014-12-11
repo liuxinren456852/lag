@@ -1,11 +1,11 @@
 /*
 ===============================================================================
 
-  FILE:  LASdefinitions.hpp
+  FILE:  lasdefinitions.hpp
   
   CONTENTS:
   
-    Contains the Header and Point classes for reading and writing LIDAR points
+    Contains the Header and Point classes for reading and writing LiDAR points
     in the LAS format
 
       Version 1.4,   Nov 14, 2011.
@@ -20,17 +20,18 @@
 
   COPYRIGHT:
 
-    (c) 2005-2013, martin isenburg, rapidlasso - tools to catch reality
+    (c) 2005-2014, martin isenburg, rapidlasso - tools to catch reality
 
     This is free software; you can redistribute and/or modify it under the
     terms of the GNU Lesser General Licence as published by the Free Software
-    Foundation except for (R). See the LICENSE.txt file for more information.
+    Foundation. See the LICENSE.txt file for more information.
 
     This software is distributed WITHOUT ANY WARRANTY and without even the
     implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
   
   CHANGE HISTORY:
   
+    9 December 2013 -- bug fix and improved writing of new LAS 1.4 point types
     21 December 2011 -- (limited) support for LAS 1.4 and attributed extra bytes 
     10 January 2011 -- licensing change for LGPL release and liblas integration
     16 December 2010 -- updated to support generic LASitem point formats
@@ -44,7 +45,7 @@
 #ifndef LAS_DEFINITIONS_HPP
 #define LAS_DEFINITIONS_HPP
 
-#define LAS_TOOLS_VERSION 130902
+#define LAS_TOOLS_VERSION 141117
 
 #include <stdio.h>
 #include <string.h>
@@ -65,6 +66,10 @@
 #define LAS_TOOLS_FORMAT_ASC     8
 #define LAS_TOOLS_FORMAT_BIL     9
 #define LAS_TOOLS_FORMAT_FLT    10
+#define LAS_TOOLS_FORMAT_DTM    11
+
+#define LAS_TOOLS_IO_IBUFFER_SIZE   262144
+#define LAS_TOOLS_IO_OBUFFER_SIZE   262144
 
 class LASwavepacket
 {
@@ -100,13 +105,13 @@ public:
   F64 y_offset;
   F64 z_offset;
 
-  inline F64 get_x(const I32 x) const { return x_scale_factor*x+x_offset; };
-  inline F64 get_y(const I32 y) const { return y_scale_factor*y+y_offset; };
-  inline F64 get_z(const I32 z) const { return z_scale_factor*z+z_offset; };
+  inline F64 get_x(const I32 X) const { return x_scale_factor*X+x_offset; };
+  inline F64 get_y(const I32 Y) const { return y_scale_factor*Y+y_offset; };
+  inline F64 get_z(const I32 Z) const { return z_scale_factor*Z+z_offset; };
 
-  inline I32 get_x(const F64 x) const { if (x >= x_offset) return (I32)((x-x_offset)/x_scale_factor+0.5); else return (I32)((x-x_offset)/x_scale_factor-0.5); };
-  inline I32 get_y(const F64 y) const { if (y >= y_offset) return (I32)((y-y_offset)/y_scale_factor+0.5); else return (I32)((y-y_offset)/y_scale_factor-0.5); };
-  inline I32 get_z(const F64 z) const { if (z >= z_offset) return (I32)((z-z_offset)/z_scale_factor+0.5); else return (I32)((z-z_offset)/z_scale_factor-0.5); };
+  inline I32 get_X(const F64 x) const { if (x >= x_offset) return (I32)((x-x_offset)/x_scale_factor+0.5); else return (I32)((x-x_offset)/x_scale_factor-0.5); };
+  inline I32 get_Y(const F64 y) const { if (y >= y_offset) return (I32)((y-y_offset)/y_scale_factor+0.5); else return (I32)((y-y_offset)/y_scale_factor-0.5); };
+  inline I32 get_Z(const F64 z) const { if (z >= z_offset) return (I32)((z-z_offset)/z_scale_factor+0.5); else return (I32)((z-z_offset)/z_scale_factor-0.5); };
 
   LASquantizer()
   {
@@ -164,7 +169,7 @@ public:
     this->options = size;
   };
 
-  LASattribute(U32 type, const char* name, const char* description=0, U32 dim=1)
+  LASattribute(U32 type, const CHAR* name, const CHAR* description=0, U32 dim=1)
   {
     if (type > LAS_ATTRIBUTE_F64) throw;
     if ((dim < 1) || (dim > 3)) throw;
@@ -174,53 +179,53 @@ public:
     this->data_type = (dim-1)*10+type+1;
     strncpy(this->name, name, 32);
     if (description) strncpy(this->description, description, 32);
-  }
+  };
 
-  inline BOOL set_no_data(U8 no_data, I32 dim=0) { if ((0 == get_type()) && (dim < get_dim())) { this->no_data[dim].u64 = no_data; options |= 0x01; return TRUE; } return FALSE; }
-  inline BOOL set_no_data(I8 no_data, I32 dim=0) { if ((1 == get_type()) && (dim < get_dim())) { this->no_data[dim].i64 = no_data; options |= 0x01; return TRUE; } return FALSE; }
-  inline BOOL set_no_data(U16 no_data, I32 dim=0) { if ((2 == get_type()) && (dim < get_dim())) { this->no_data[dim].u64 = no_data; options |= 0x01; return TRUE; } return FALSE; }
-  inline BOOL set_no_data(I16 no_data, I32 dim=0) { if ((3 == get_type()) && (dim < get_dim())) { this->no_data[dim].i64 = no_data; options |= 0x01; return TRUE; } return FALSE; }
-  inline BOOL set_no_data(U32 no_data, I32 dim=0) { if ((4 == get_type()) && (dim < get_dim())) { this->no_data[dim].u64 = no_data; options |= 0x01; return TRUE; } return FALSE; }
-  inline BOOL set_no_data(I32 no_data, I32 dim=0) { if ((5 == get_type()) && (dim < get_dim())) { this->no_data[dim].i64 = no_data; options |= 0x01; return TRUE; } return FALSE; }
-  inline BOOL set_no_data(U64 no_data, I32 dim=0) { if ((6 == get_type()) && (dim < get_dim())) { this->no_data[dim].u64 = no_data; options |= 0x01; return TRUE; } return FALSE; }
-  inline BOOL set_no_data(I64 no_data, I32 dim=0) { if ((7 == get_type()) && (dim < get_dim())) { this->no_data[dim].i64 = no_data; options |= 0x01; return TRUE; } return FALSE; }
-  inline BOOL set_no_data(F32 no_data, I32 dim=0) { if ((8 == get_type()) && (dim < get_dim())) { this->no_data[dim].f64 = no_data; options |= 0x01; return TRUE; } return FALSE; }
-  inline BOOL set_no_data(F64 no_data, I32 dim=0) { if ((9 == get_type()) && (dim < get_dim())) { this->no_data[dim].f64 = no_data; options |= 0x01; return TRUE; } return FALSE; }
+  inline BOOL set_no_data(U8 no_data, I32 dim=0) { if ((0 == get_type()) && (dim < get_dim())) { this->no_data[dim].u64 = no_data; options |= 0x01; return TRUE; } return FALSE; };
+  inline BOOL set_no_data(I8 no_data, I32 dim=0) { if ((1 == get_type()) && (dim < get_dim())) { this->no_data[dim].i64 = no_data; options |= 0x01; return TRUE; } return FALSE; };
+  inline BOOL set_no_data(U16 no_data, I32 dim=0) { if ((2 == get_type()) && (dim < get_dim())) { this->no_data[dim].u64 = no_data; options |= 0x01; return TRUE; } return FALSE; };
+  inline BOOL set_no_data(I16 no_data, I32 dim=0) { if ((3 == get_type()) && (dim < get_dim())) { this->no_data[dim].i64 = no_data; options |= 0x01; return TRUE; } return FALSE; };
+  inline BOOL set_no_data(U32 no_data, I32 dim=0) { if ((4 == get_type()) && (dim < get_dim())) { this->no_data[dim].u64 = no_data; options |= 0x01; return TRUE; } return FALSE; };
+  inline BOOL set_no_data(I32 no_data, I32 dim=0) { if ((5 == get_type()) && (dim < get_dim())) { this->no_data[dim].i64 = no_data; options |= 0x01; return TRUE; } return FALSE; };
+  inline BOOL set_no_data(U64 no_data, I32 dim=0) { if ((6 == get_type()) && (dim < get_dim())) { this->no_data[dim].u64 = no_data; options |= 0x01; return TRUE; } return FALSE; };
+  inline BOOL set_no_data(I64 no_data, I32 dim=0) { if ((7 == get_type()) && (dim < get_dim())) { this->no_data[dim].i64 = no_data; options |= 0x01; return TRUE; } return FALSE; };
+  inline BOOL set_no_data(F32 no_data, I32 dim=0) { if ((8 == get_type()) && (dim < get_dim())) { this->no_data[dim].f64 = no_data; options |= 0x01; return TRUE; } return FALSE; };
+  inline BOOL set_no_data(F64 no_data, I32 dim=0) { if ((9 == get_type()) && (dim < get_dim())) { this->no_data[dim].f64 = no_data; options |= 0x01; return TRUE; } return FALSE; };
 
-  inline void set_min(U8* min, I32 dim=0) { this->min[dim] = cast(min); options |= 0x02; }
-  inline void update_min(U8* min, I32 dim=0) { this->min[dim] = smallest(cast(min), this->min[dim]); }
-  inline BOOL set_min(U8 min, I32 dim=0) { if ((0 == get_type()) && (dim < get_dim())) { this->min[dim].u64 = min; options |= 0x02; return TRUE; } return FALSE; }
-  inline BOOL set_min(I8 min, I32 dim=0) { if ((1 == get_type()) && (dim < get_dim())) { this->min[dim].i64 = min; options |= 0x02; return TRUE; } return FALSE; }
-  inline BOOL set_min(U16 min, I32 dim=0) { if ((2 == get_type()) && (dim < get_dim())) { this->min[dim].u64 = min; options |= 0x02; return TRUE; } return FALSE; }
-  inline BOOL set_min(I16 min, I32 dim=0) { if ((3 == get_type()) && (dim < get_dim())) { this->min[dim].i64 = min; options |= 0x02; return TRUE; } return FALSE; }
-  inline BOOL set_min(U32 min, I32 dim=0) { if ((4 == get_type()) && (dim < get_dim())) { this->min[dim].u64 = min; options |= 0x02; return TRUE; } return FALSE; }
-  inline BOOL set_min(I32 min, I32 dim=0) { if ((5 == get_type()) && (dim < get_dim())) { this->min[dim].i64 = min; options |= 0x02; return TRUE; } return FALSE; }
-  inline BOOL set_min(U64 min, I32 dim=0) { if ((6 == get_type()) && (dim < get_dim())) { this->min[dim].u64 = min; options |= 0x02; return TRUE; } return FALSE; }
-  inline BOOL set_min(I64 min, I32 dim=0) { if ((7 == get_type()) && (dim < get_dim())) { this->min[dim].i64 = min; options |= 0x02; return TRUE; } return FALSE; }
-  inline BOOL set_min(F32 min, I32 dim=0) { if ((8 == get_type()) && (dim < get_dim())) { this->min[dim].f64 = min; options |= 0x02; return TRUE; } return FALSE; }
-  inline BOOL set_min(F64 min, I32 dim=0) { if ((9 == get_type()) && (dim < get_dim())) { this->min[dim].f64 = min; options |= 0x02; return TRUE; } return FALSE; }
+  inline void set_min(U8* min, I32 dim=0) { this->min[dim] = cast(min); options |= 0x02; };
+  inline void update_min(U8* min, I32 dim=0) { this->min[dim] = smallest(cast(min), this->min[dim]); };
+  inline BOOL set_min(U8 min, I32 dim=0) { if ((0 == get_type()) && (dim < get_dim())) { this->min[dim].u64 = min; options |= 0x02; return TRUE; } return FALSE; };
+  inline BOOL set_min(I8 min, I32 dim=0) { if ((1 == get_type()) && (dim < get_dim())) { this->min[dim].i64 = min; options |= 0x02; return TRUE; } return FALSE; };
+  inline BOOL set_min(U16 min, I32 dim=0) { if ((2 == get_type()) && (dim < get_dim())) { this->min[dim].u64 = min; options |= 0x02; return TRUE; } return FALSE; };
+  inline BOOL set_min(I16 min, I32 dim=0) { if ((3 == get_type()) && (dim < get_dim())) { this->min[dim].i64 = min; options |= 0x02; return TRUE; } return FALSE; };
+  inline BOOL set_min(U32 min, I32 dim=0) { if ((4 == get_type()) && (dim < get_dim())) { this->min[dim].u64 = min; options |= 0x02; return TRUE; } return FALSE; };
+  inline BOOL set_min(I32 min, I32 dim=0) { if ((5 == get_type()) && (dim < get_dim())) { this->min[dim].i64 = min; options |= 0x02; return TRUE; } return FALSE; };
+  inline BOOL set_min(U64 min, I32 dim=0) { if ((6 == get_type()) && (dim < get_dim())) { this->min[dim].u64 = min; options |= 0x02; return TRUE; } return FALSE; };
+  inline BOOL set_min(I64 min, I32 dim=0) { if ((7 == get_type()) && (dim < get_dim())) { this->min[dim].i64 = min; options |= 0x02; return TRUE; } return FALSE; };
+  inline BOOL set_min(F32 min, I32 dim=0) { if ((8 == get_type()) && (dim < get_dim())) { this->min[dim].f64 = min; options |= 0x02; return TRUE; } return FALSE; };
+  inline BOOL set_min(F64 min, I32 dim=0) { if ((9 == get_type()) && (dim < get_dim())) { this->min[dim].f64 = min; options |= 0x02; return TRUE; } return FALSE; };
 
-  inline void set_max(U8* max, I32 dim=0) { this->max[dim] = cast(max); options |= 0x04; }
-  inline void update_max(U8* max, I32 dim=0) { this->max[dim] = biggest(cast(max), this->max[dim]); }
-  inline BOOL set_max(U8 max, I32 dim=0) { if ((0 == get_type()) && (dim < get_dim())) { this->max[dim].u64 = max; options |= 0x04; return TRUE; } return FALSE; }
-  inline BOOL set_max(I8 max, I32 dim=0) { if ((1 == get_type()) && (dim < get_dim())) { this->max[dim].i64 = max; options |= 0x04; return TRUE; } return FALSE; }
-  inline BOOL set_max(U16 max, I32 dim=0) { if ((2 == get_type()) && (dim < get_dim())) { this->max[dim].u64 = max; options |= 0x04; return TRUE; } return FALSE; }
-  inline BOOL set_max(I16 max, I32 dim=0) { if ((3 == get_type()) && (dim < get_dim())) { this->max[dim].i64 = max; options |= 0x04; return TRUE; } return FALSE; }
-  inline BOOL set_max(U32 max, I32 dim=0) { if ((4 == get_type()) && (dim < get_dim())) { this->max[dim].u64 = max; options |= 0x04; return TRUE; } return FALSE; }
-  inline BOOL set_max(I32 max, I32 dim=0) { if ((5 == get_type()) && (dim < get_dim())) { this->max[dim].i64 = max; options |= 0x04; return TRUE; } return FALSE; }
-  inline BOOL set_max(U64 max, I32 dim=0) { if ((6 == get_type()) && (dim < get_dim())) { this->max[dim].u64 = max; options |= 0x04; return TRUE; } return FALSE; }
-  inline BOOL set_max(I64 max, I32 dim=0) { if ((7 == get_type()) && (dim < get_dim())) { this->max[dim].i64 = max; options |= 0x04; return TRUE; } return FALSE; }
-  inline BOOL set_max(F32 max, I32 dim=0) { if ((8 == get_type()) && (dim < get_dim())) { this->max[dim].f64 = max; options |= 0x04; return TRUE; } return FALSE; }
-  inline BOOL set_max(F64 max, I32 dim=0) { if ((9 == get_type()) && (dim < get_dim())) { this->max[dim].f64 = max; options |= 0x04; return TRUE; } return FALSE; }
+  inline void set_max(U8* max, I32 dim=0) { this->max[dim] = cast(max); options |= 0x04; };
+  inline void update_max(U8* max, I32 dim=0) { this->max[dim] = biggest(cast(max), this->max[dim]); };
+  inline BOOL set_max(U8 max, I32 dim=0) { if ((0 == get_type()) && (dim < get_dim())) { this->max[dim].u64 = max; options |= 0x04; return TRUE; } return FALSE; };
+  inline BOOL set_max(I8 max, I32 dim=0) { if ((1 == get_type()) && (dim < get_dim())) { this->max[dim].i64 = max; options |= 0x04; return TRUE; } return FALSE; };
+  inline BOOL set_max(U16 max, I32 dim=0) { if ((2 == get_type()) && (dim < get_dim())) { this->max[dim].u64 = max; options |= 0x04; return TRUE; } return FALSE; };
+  inline BOOL set_max(I16 max, I32 dim=0) { if ((3 == get_type()) && (dim < get_dim())) { this->max[dim].i64 = max; options |= 0x04; return TRUE; } return FALSE; };
+  inline BOOL set_max(U32 max, I32 dim=0) { if ((4 == get_type()) && (dim < get_dim())) { this->max[dim].u64 = max; options |= 0x04; return TRUE; } return FALSE; };
+  inline BOOL set_max(I32 max, I32 dim=0) { if ((5 == get_type()) && (dim < get_dim())) { this->max[dim].i64 = max; options |= 0x04; return TRUE; } return FALSE; };
+  inline BOOL set_max(U64 max, I32 dim=0) { if ((6 == get_type()) && (dim < get_dim())) { this->max[dim].u64 = max; options |= 0x04; return TRUE; } return FALSE; };
+  inline BOOL set_max(I64 max, I32 dim=0) { if ((7 == get_type()) && (dim < get_dim())) { this->max[dim].i64 = max; options |= 0x04; return TRUE; } return FALSE; };
+  inline BOOL set_max(F32 max, I32 dim=0) { if ((8 == get_type()) && (dim < get_dim())) { this->max[dim].f64 = max; options |= 0x04; return TRUE; } return FALSE; };
+  inline BOOL set_max(F64 max, I32 dim=0) { if ((9 == get_type()) && (dim < get_dim())) { this->max[dim].f64 = max; options |= 0x04; return TRUE; } return FALSE; };
 
-  inline BOOL set_scale(F64 scale, I32 dim=0) { if (data_type) { this->scale[dim] = scale; options |= 0x08; return TRUE; } return FALSE; }
-  inline BOOL set_offset(F64 offset, I32 dim=0) { if (data_type) { this->offset[dim] = offset; options |= 0x10; return TRUE; } return FALSE; }
+  inline BOOL set_scale(F64 scale, I32 dim=0) { if (data_type) { this->scale[dim] = scale; options |= 0x08; return TRUE; } return FALSE; };
+  inline BOOL set_offset(F64 offset, I32 dim=0) { if (data_type) { this->offset[dim] = offset; options |= 0x10; return TRUE; } return FALSE; };
 
-  inline BOOL has_no_data() const { return options & 0x01; }
-  inline BOOL has_min() const { return options & 0x02; }
-  inline BOOL has_max() const { return options & 0x04; }
-  inline BOOL has_scale() const { return options & 0x08; }
-  inline BOOL has_offset() const { return options & 0x10; }
+  inline BOOL has_no_data() const { return options & 0x01; };
+  inline BOOL has_min() const { return options & 0x02; };
+  inline BOOL has_max() const { return options & 0x04; };
+  inline BOOL has_scale() const { return options & 0x08; };
+  inline BOOL has_offset() const { return options & 0x10; };
 
   inline U32 get_size() const
   {
@@ -235,17 +240,44 @@ public:
     {
       return options;
     }
-  }
+  };
+
+  inline F64 get_value_as_float(U8* value) const
+  {
+    F64 casted_value;
+    I32 type = get_type();
+    if (type == 0)
+      casted_value = (F64)*((U8*)value);
+    else if (type == 1)
+      casted_value = (F64)*((I8*)value);
+    else if (type == 2)
+      casted_value = (F64)*((U16*)value);
+    else if (type == 3)
+      casted_value = (F64)*((I16*)value);
+    else if (type == 4)
+      casted_value = (F64)*((U32*)value);
+    else if (type == 5)
+      casted_value = (F64)*((I32*)value);
+    else if (type == 6)
+      casted_value = (F64)(I64)*((U64*)value);
+    else if (type == 7)
+      casted_value = (F64)*((I64*)value);
+    else if (type == 8)
+      casted_value = (F64)*((F32*)value);
+    else
+      casted_value = *((F64*)value);
+    return offset[0]+scale[0]*casted_value;
+  };
 
 private:
   inline I32 get_type() const
   {
     return ((I32)data_type - 1)%10;
-  }
+  };
   inline I32 get_dim() const
   {
     return 1 + ((I32)data_type - 1)/10;
-  }
+  };
   inline U64I64F64 cast(U8* value) const
   {
     I32 type = get_type();
@@ -271,7 +303,7 @@ private:
     else
       casted_value.f64 = *((F64*)value);
     return casted_value;
-  }
+  };
   inline U64I64F64 smallest(U64I64F64 a, U64I64F64 b) const
   {
     I32 type = get_type();
@@ -287,7 +319,7 @@ private:
     }
     if (a.u64 < b.u64) return a;
     else               return b;
-  }
+  };
   inline U64I64F64 biggest(U64I64F64 a, U64I64F64 b) const
   {
     I32 type = get_type();
@@ -303,100 +335,136 @@ private:
     }
     if (a.u64 > b.u64) return a;
     else               return b;
-  }
+  };
 };
 
 class LASattributer
 {
 public:
-  I32 number_extra_attributes;
-  LASattribute* extra_attributes;
-  I32* extra_attribute_array_offsets;
-  I32* extra_attribute_sizes;
+  I32 number_attributes;
+  LASattribute* attributes;
+  I32* attribute_starts;
+  I32* attribute_sizes;
 
   LASattributer()
   {
-    number_extra_attributes = 0;
-    extra_attributes = 0;
-    extra_attribute_array_offsets = 0;
-    extra_attribute_sizes = 0;
-  }
+    number_attributes = 0;
+    attributes = 0;
+    attribute_starts = 0;
+    attribute_sizes = 0;
+  };
 
   ~LASattributer()
   {
-    clean_extra_attributes();
-  }
+    clean_attributes();
+  };
 
-  void clean_extra_attributes()
+  void clean_attributes()
   {
-    if (number_extra_attributes)
+    if (number_attributes)
     {
-      number_extra_attributes = 0;
-      free(extra_attributes); extra_attributes = 0;
-      free(extra_attribute_array_offsets); extra_attribute_array_offsets = 0;
-      free(extra_attribute_sizes); extra_attribute_sizes = 0;
+      number_attributes = 0;
+      free(attributes); attributes = 0;
+      free(attribute_starts); attribute_starts = 0;
+      free(attribute_sizes); attribute_sizes = 0;
     }
-  }
+  };
 
-  BOOL init_extra_attributes(U32 number_extra_attributes, LASattribute* extra_attributes)
+  BOOL init_attributes(U32 number_attributes, LASattribute* attributes)
   {
     U32 i;
-    clean_extra_attributes();
-    this->number_extra_attributes = number_extra_attributes;
-    this->extra_attributes = (LASattribute*)malloc(sizeof(LASattribute)*number_extra_attributes);
-    memcpy(this->extra_attributes, extra_attributes, sizeof(LASattribute)*number_extra_attributes);
-    extra_attribute_array_offsets = (I32*)malloc(sizeof(I32)*number_extra_attributes);
-    extra_attribute_sizes = (I32*)malloc(sizeof(I32)*number_extra_attributes);
-    extra_attribute_array_offsets[0] = 0;
-    extra_attribute_sizes[0] = extra_attributes[0].get_size();
-    for (i = 1; i < number_extra_attributes; i++)
+    clean_attributes();
+    this->number_attributes = number_attributes;
+    this->attributes = (LASattribute*)malloc(sizeof(LASattribute)*number_attributes);
+    if (this->attributes == 0)
     {
-      extra_attribute_array_offsets[i] = extra_attribute_array_offsets[i-1] + extra_attribute_sizes[i-1];
-      extra_attribute_sizes[i] = extra_attributes[i].get_size();
+      return FALSE;
+    }
+    memcpy(this->attributes, attributes, sizeof(LASattribute)*number_attributes);
+    attribute_starts = (I32*)malloc(sizeof(I32)*number_attributes);
+    if (attribute_starts == 0)
+    {
+      return FALSE;
+    }
+    attribute_sizes = (I32*)malloc(sizeof(I32)*number_attributes);
+    if (attribute_sizes == 0)
+    {
+      return FALSE;
+    }
+    attribute_starts[0] = 0;
+    attribute_sizes[0] = attributes[0].get_size();
+    for (i = 1; i < number_attributes; i++)
+    {
+      attribute_starts[i] = attribute_starts[i-1] + attribute_sizes[i-1];
+      attribute_sizes[i] = attributes[i].get_size();
     }
     return TRUE;
-  }
+  };
 
-  I32 add_extra_attribute(const LASattribute extra_attribute)
+  I32 add_attribute(const LASattribute attribute)
   {
-    if (extra_attribute.get_size())
+    if (attribute.get_size())
     {
-      if (extra_attributes)
+      if (attributes)
       {
-        number_extra_attributes++;
-        extra_attributes = (LASattribute*)realloc(extra_attributes, sizeof(LASattribute)*number_extra_attributes);
-        extra_attribute_array_offsets = (I32*)realloc(extra_attribute_array_offsets, sizeof(I32)*number_extra_attributes);
-        extra_attribute_sizes = (I32*)realloc(extra_attribute_sizes, sizeof(I32)*number_extra_attributes);
-        extra_attributes[number_extra_attributes-1] = extra_attribute;
-        extra_attribute_array_offsets[number_extra_attributes-1] = extra_attribute_array_offsets[number_extra_attributes-2] + extra_attribute_sizes[number_extra_attributes-2];
-        extra_attribute_sizes[number_extra_attributes-1] = extra_attributes[number_extra_attributes-1].get_size();
+        number_attributes++;
+        attributes = (LASattribute*)realloc(attributes, sizeof(LASattribute)*number_attributes);
+        if (attributes == 0)
+        {
+          return -1;
+        }
+        attribute_starts = (I32*)realloc(attribute_starts, sizeof(I32)*number_attributes);
+        if (attribute_starts == 0)
+        {
+          return -1;
+        }
+        attribute_sizes = (I32*)realloc(attribute_sizes, sizeof(I32)*number_attributes);
+        if (attribute_sizes == 0)
+        {
+          return -1;
+        }
+        attributes[number_attributes-1] = attribute;
+        attribute_starts[number_attributes-1] = attribute_starts[number_attributes-2] + attribute_sizes[number_attributes-2];
+        attribute_sizes[number_attributes-1] = attributes[number_attributes-1].get_size();
       }
       else
       {
-        number_extra_attributes = 1;
-        extra_attributes = (LASattribute*)malloc(sizeof(LASattribute));
-        extra_attribute_array_offsets = (I32*)malloc(sizeof(I32));
-        extra_attribute_sizes = (I32*)malloc(sizeof(I32));
-        extra_attributes[0] = extra_attribute;
-        extra_attribute_array_offsets[0] = 0;
-        extra_attribute_sizes[0] = extra_attributes[0].get_size();
+        number_attributes = 1;
+        attributes = (LASattribute*)malloc(sizeof(LASattribute));
+        if (attributes == 0)
+        {
+          return -1;
+        }
+        attribute_starts = (I32*)malloc(sizeof(I32));
+        if (attribute_starts == 0)
+        {
+          return -1;
+        }
+        attribute_sizes = (I32*)malloc(sizeof(I32));
+        if (attribute_sizes == 0)
+        {
+          return -1;
+        }
+        attributes[0] = attribute;
+        attribute_starts[0] = 0;
+        attribute_sizes[0] = attributes[0].get_size();
       }
-      return number_extra_attributes-1;
+      return number_attributes-1;
     }
     return -1;
   };
 
-  inline I16 get_total_extra_attributes_size() const
+  inline I16 get_attributes_size() const
   {
-    return (extra_attributes ? extra_attribute_array_offsets[number_extra_attributes-1] + extra_attribute_sizes[number_extra_attributes-1] : 0);
+    return (attributes ? attribute_starts[number_attributes-1] + attribute_sizes[number_attributes-1] : 0);
   }
 
-  I32 get_extra_attribute_index(const char* name) const
+  I32 get_attribute_index(const CHAR* name) const
   {
     I32 i;
-    for (i = 0; i < number_extra_attributes; i++)
+    for (i = 0; i < number_attributes; i++)
     {
-      if (strcmp(extra_attributes[i].name, name) == 0)
+      if (strcmp(attributes[i].name, name) == 0)
       {
         return i;
       }
@@ -404,68 +472,78 @@ public:
     return -1;
   }
 
-  I32 get_extra_attribute_array_offset(const char* name) const
+  I32 get_attribute_start(const CHAR* name) const
   {
     I32 i;
-    for (i = 0; i < number_extra_attributes; i++)
+    for (i = 0; i < number_attributes; i++)
     {
-      if (strcmp(extra_attributes[i].name, name) == 0)
+      if (strcmp(attributes[i].name, name) == 0)
       {
-        return extra_attribute_array_offsets[i];
+        return attribute_starts[i];
       }
     }
     return -1;
   }
 
-  I32 get_extra_attribute_array_offset(I32 index) const
+  I32 get_attribute_start(I32 index) const
   {
-    if (index < number_extra_attributes)
+    if (index < number_attributes)
     {
-      return extra_attribute_array_offsets[index];
+      return attribute_starts[index];
     }
     return -1;
   }
 
-  BOOL remove_extra_attribute(I32 index)
+  I32 get_attribute_size(I32 index) const
   {
-    if (index < 0 || index >= number_extra_attributes)
+    if (index < number_attributes)
+    {
+      return attribute_sizes[index];
+    }
+    return -1;
+  }
+
+  BOOL remove_attribute(I32 index)
+  {
+    if (index < 0 || index >= number_attributes)
     {
       return FALSE;
     }
-    for (index = index + 1; index < number_extra_attributes; index++)
+    for (index = index + 1; index < number_attributes; index++)
     {
-      extra_attributes[index-1] = extra_attributes[index];
+      attributes[index-1] = attributes[index];
       if (index > 1)
       {
-        extra_attribute_array_offsets[index-1] = extra_attribute_array_offsets[index-2] + extra_attribute_sizes[index-2];
+        attribute_starts[index-1] = attribute_starts[index-2] + attribute_sizes[index-2];
       }
       else
       {
-        extra_attribute_array_offsets[index-1] = 0;
+        attribute_starts[index-1] = 0;
       }
-      extra_attribute_sizes[index-1] = extra_attribute_sizes[index];
+      attribute_sizes[index-1] = attribute_sizes[index];
     }
-    number_extra_attributes--;
-    if (number_extra_attributes)
+    number_attributes--;
+    if (number_attributes)
     {
-      extra_attributes = (LASattribute*)realloc(extra_attributes, sizeof(LASattribute)*number_extra_attributes);
-      extra_attribute_array_offsets = (I32*)realloc(extra_attribute_array_offsets, sizeof(I32)*number_extra_attributes);
-      extra_attribute_sizes = (I32*)realloc(extra_attribute_sizes, sizeof(I32)*number_extra_attributes);
+      attributes = (LASattribute*)realloc(attributes, sizeof(LASattribute)*number_attributes);
+      attribute_starts = (I32*)realloc(attribute_starts, sizeof(I32)*number_attributes);
+      attribute_sizes = (I32*)realloc(attribute_sizes, sizeof(I32)*number_attributes);
     }
     else
     {
-      free(extra_attributes); extra_attributes = 0;
-      free(extra_attribute_array_offsets); extra_attribute_array_offsets = 0;
-      free(extra_attribute_sizes); extra_attribute_sizes = 0;
+      free(attributes); attributes = 0;
+      free(attribute_starts); attribute_starts = 0;
+      free(attribute_sizes); attribute_sizes = 0;
     }
+    return TRUE;
   }
 
-  BOOL remove_extra_attribute(const char* name)
+  BOOL remove_attribute(const CHAR* name)
   {
-    I32 index = get_extra_attribute_index(name);
+    I32 index = get_attribute_index(name);
     if (index != -1)
     { 
-      return remove_extra_attribute(index);
+      return remove_attribute(index);
     }
     return FALSE;
   }
@@ -477,27 +555,36 @@ public:
 
 // these fields contain the data that describe each point
 
-  I32 x;
-  I32 y;
-  I32 z;
+  I32 X;
+  I32 Y;
+  I32 Z;
   U16 intensity;
   U8 return_number : 3;
-  U8 number_of_returns_of_given_pulse : 3;
+  U8 number_of_returns : 3;
   U8 scan_direction_flag : 1;
   U8 edge_of_flight_line : 1;
-  U8 classification;
+  U8 classification : 5;
+  U8 synthetic_flag : 1;
+  U8 keypoint_flag  : 1;
+  U8 withheld_flag  : 1;
   I8 scan_angle_rank;
   U8 user_data;
   U16 point_source_ID;
 
   // LAS 1.4 only
+  I16 extended_scan_angle;
   U8 extended_point_type : 2;
   U8 extended_scanner_channel : 2;
   U8 extended_classification_flags : 4;
   U8 extended_classification;
   U8 extended_return_number : 4;
-  U8 extended_number_of_returns_of_given_pulse : 4;
-  I16 extended_scan_angle;
+  U8 extended_number_of_returns : 4;
+
+  // for 8 byte alignment of the GPS time
+  U8 dummy[3];
+
+  // LASlib only
+  U32 deleted_flag;
 
   F64 gps_time;
   U16 rgb[4];
@@ -540,18 +627,22 @@ public:
 
   LASpoint & operator=(const LASpoint & other)
   {
-    x = other.x;
-    y = other.y;
-    z = other.z;
+    X = other.X;
+    Y = other.Y;
+    Z = other.Z;
     intensity = other.intensity;
     return_number = other.return_number;
-    number_of_returns_of_given_pulse = other.number_of_returns_of_given_pulse;
+    number_of_returns = other.number_of_returns;
     scan_direction_flag = other.scan_direction_flag;
     edge_of_flight_line = other.edge_of_flight_line;
     classification = other.classification;
+    synthetic_flag = other.synthetic_flag;
+    keypoint_flag = other.keypoint_flag;
+    withheld_flag = other.withheld_flag;
     scan_angle_rank = other.scan_angle_rank;
     user_data = other.user_data;
     point_source_ID = other.point_source_ID;
+    deleted_flag = other.deleted_flag;
 
     if (other.have_gps_time)
     {
@@ -579,11 +670,21 @@ public:
     {
       extended_classification = other.extended_classification;
       extended_classification_flags = other.extended_classification_flags;
-      extended_number_of_returns_of_given_pulse = other.extended_number_of_returns_of_given_pulse;
+      extended_number_of_returns = other.extended_number_of_returns;
       extended_return_number = other.extended_return_number;
       extended_scan_angle = other.extended_scan_angle;
       extended_scanner_channel = other.extended_scanner_channel;
     }
+    else if (extended_point_type)
+    {
+      extended_classification = other.classification & 31;
+      extended_classification_flags = other.classification >> 5;
+      extended_number_of_returns = other.number_of_returns;
+      extended_return_number = other.return_number;
+      extended_scan_angle = I16_QUANTIZE(((F32)other.scan_angle_rank)/0.006);
+      extended_scanner_channel = 0;
+    }
+
     return *this;
   };
 
@@ -609,7 +710,7 @@ public:
     }
   };
 
-// these functions set the desired point format (and maybe add on extra attributes)
+// these functions set the desired point format (and maybe add on attributes in extra bytes)
 
   BOOL init(const LASquantizer* quantizer, const U8 point_type, const U16 point_size, const LASattributer* attributer=0)
   {
@@ -619,7 +720,7 @@ public:
 
     // switch over the point types we know
 
-    if (!LASzip().setup(&num_items, &items, point_type, point_size))
+    if (!LASzip().setup(&num_items, &items, point_type, point_size, LASZIP_COMPRESSOR_NONE))
     {
       fprintf(stderr,"ERROR: unknown point type %d with point size %d\n", (I32)point_type, (I32)point_size);
       return FALSE;
@@ -639,7 +740,7 @@ public:
         have_gps_time = TRUE;
         extended_point_type = 1;
       case LASitem::POINT10:
-        this->point[i] = (U8*)&(this->x);
+        this->point[i] = (U8*)&(this->X);
         break;
       case LASitem::GPSTIME11:
         have_gps_time = TRUE;
@@ -695,7 +796,7 @@ public:
         have_gps_time = TRUE;
         extended_point_type = 1;
       case LASitem::POINT10:
-        this->point[i] = (U8*)&(this->x);
+        this->point[i] = (U8*)&(this->X);
         break;
       case LASitem::GPSTIME11:
         have_gps_time = TRUE;
@@ -778,7 +879,7 @@ public:
 
   BOOL is_zero() const
   {
-    if (((U32*)&(this->x))[0] || ((U32*)&(this->x))[1] || ((U32*)&(this->x))[2] || ((U32*)&(this->x))[3] || ((U32*)&(this->x))[4])
+    if (((U32*)&(this->X))[0] || ((U32*)&(this->X))[1] || ((U32*)&(this->X))[2] || ((U32*)&(this->X))[3] || ((U32*)&(this->X))[4])
     {
       return FALSE;
     }
@@ -808,25 +909,31 @@ public:
 
   void zero()
   {
-    x=0;
-    y=0;
-    z=0;
-    intensity=0;
-    edge_of_flight_line=0;
-    scan_direction_flag=0;
-    number_of_returns_of_given_pulse = 1;
+    X = 0;
+    Y = 0;
+    Z = 0;
+    intensity = 0;
     return_number = 1;
+    number_of_returns = 1;
+    scan_direction_flag = 0;
+    edge_of_flight_line = 0;
     classification = 0;
+    synthetic_flag = 0;
+    keypoint_flag = 0;
+    withheld_flag = 0;
     scan_angle_rank = 0;
     user_data = 0;
     point_source_ID = 0;
 
     // LAS 1.4 only
+    extended_scan_angle = 0;
     extended_scanner_channel = 0;
     extended_classification_flags = 0;
     extended_return_number = 1;
-    extended_number_of_returns_of_given_pulse = 1;
-    extended_scan_angle = 0;
+    extended_number_of_returns = 1;
+
+    // LASlib only
+    deleted_flag = 0;
 
     gps_time = 0.0;
     rgb[0] = rgb[1] = rgb[2] = rgb[3] = 0;
@@ -869,13 +976,53 @@ public:
     clean();
   };
 
-  inline F64 get_x() const { return quantizer->get_x(x); };
-  inline F64 get_y() const { return quantizer->get_y(y); };
-  inline F64 get_z() const { return quantizer->get_z(z); };
+  inline BOOL is_first() const { return get_return_number() == 1; };
+  inline BOOL is_last() const { return get_return_number() >= get_number_of_returns(); };
 
-  inline void set_x(const F64 x) { this->x = quantizer->get_x(x); };
-  inline void set_y(const F64 y) { this->y = quantizer->get_y(y); };
-  inline void set_z(const F64 z) { this->z = quantizer->get_z(z); };
+  inline I32 get_X() const { return X; };
+  inline I32 get_Y() const { return Y; };
+  inline I32 get_Z() const { return Z; };
+  inline U16 get_intensity() const { return intensity; };
+  inline U8 get_return_number() const { return return_number; };
+  inline U8 get_number_of_returns() const { return number_of_returns; };
+  inline U8 get_scan_direction_flag() const { return scan_direction_flag; };
+  inline U8 get_edge_of_flight_line() const { return edge_of_flight_line; };
+  inline U8 get_classification() const { return classification; };
+  inline U8 get_synthetic_flag() const { return synthetic_flag; };
+  inline U8 get_keypoint_flag() const { return keypoint_flag; };
+  inline U8 get_withheld_flag() const { return withheld_flag; };
+  inline I8 get_scan_angle_rank() const { return scan_angle_rank; };
+  inline U8 get_user_data() const { return user_data; };
+  inline U16 get_point_source_ID() const { return point_source_ID; };
+  inline U32 get_deleted_flag() const { return deleted_flag; };
+  inline F64 get_gps_time() const { return gps_time; };
+  inline const U16* get_rgb() const { return rgb; };
+
+  inline void set_X(const I32 X) { this->X = X; };
+  inline void set_Y(const I32 Y) { this->Y = Y; };
+  inline void set_Z(const I32 Z) { this->Z = Z; };
+  inline void set_intensity(const U16 intensity) { this->intensity = intensity; };
+  inline void set_return_number(const U8 return_number) { this->return_number = (return_number > 7 ? 7 : return_number); };
+  inline void set_number_of_returns(const U8 number_of_returns) { this->number_of_returns = (number_of_returns > 7 ? 7 : number_of_returns); };
+  inline void set_scan_direction_flag(const U8 scan_direction_flag) { this->scan_direction_flag = scan_direction_flag; };
+  inline void set_edge_of_flight_line(const U8 edge_of_flight_line) { this->edge_of_flight_line = edge_of_flight_line; };
+  inline void set_classification(U8 classification) { this->classification = (classification & 31); };
+  inline void set_synthetic_flag(U8 synthetic_flag) { this->synthetic_flag = synthetic_flag; };
+  inline void set_keypoint_flag(U8 keypoint_flag) { this->keypoint_flag = keypoint_flag; };
+  inline void set_withheld_flag(U8 withheld_flag) { this->withheld_flag = withheld_flag; };
+  inline void set_user_data(U8 user_data) { this->user_data = user_data; };
+  inline void set_point_source_ID(U16 point_source_ID) { this->point_source_ID = point_source_ID; };
+  inline void set_deleted_flag(U8 deleted_flag) { this->deleted_flag = (U32)deleted_flag; };
+  inline void set_gps_time(const F64 gps_time) { this->gps_time = gps_time; };
+  inline void set_rgb(const U16* rgb) { memcpy(this->rgb, rgb, sizeof(this->rgb)); };
+
+  inline F64 get_x() const { return quantizer->get_x(X); };
+  inline F64 get_y() const { return quantizer->get_y(Y); };
+  inline F64 get_z() const { return quantizer->get_z(Z); };
+
+  inline void set_x(const F64 x) { this->X = quantizer->get_X(x); };
+  inline void set_y(const F64 y) { this->Y = quantizer->get_Y(y); };
+  inline void set_z(const F64 z) { this->Z = quantizer->get_Z(z); };
 
   inline void compute_coordinates()
   {
@@ -884,54 +1031,94 @@ public:
     coordinates[2] = get_z();
   };
 
-  inline void compute_xyz()
+  inline void compute_XYZ()
   {
     set_x(coordinates[0]);
     set_y(coordinates[1]);
     set_z(coordinates[2]);
   };
 
-  inline void compute_xyz(const LASquantizer* quantizer)
+  inline void compute_XYZ(const LASquantizer* quantizer)
   {
-    x = quantizer->get_x(coordinates[0]);
-    y = quantizer->get_y(coordinates[1]);
-    z = quantizer->get_z(coordinates[2]);
+    X = quantizer->get_X(coordinates[0]);
+    Y = quantizer->get_Y(coordinates[1]);
+    Z = quantizer->get_Z(coordinates[2]);
   };
 
-  // generic extra attribute functions
+  // generic functions for attributes in extra bytes
 
-  inline void get_extra_attribute(I32 index, U8* data) const
+  inline BOOL has_attribute(I32 index) const
   {
-    memcpy(data, extra_bytes + attributer->extra_attribute_array_offsets[index], attributer->extra_attribute_sizes[index]);
-  }
+    if (attributer)
+    {
+      if (index < attributer->number_attributes)
+      {
+        return TRUE;
+      }
+    }
+    return FALSE;
+  };
 
-  inline void set_extra_attribute(I32 index, const U8* data) 
+  inline BOOL get_attribute(I32 index, U8* data) const
   {
-    memcpy(extra_bytes + attributer->extra_attribute_array_offsets[index], data, attributer->extra_attribute_sizes[index]);
-  }
+    if (has_attribute(index))
+    {
+      memcpy(data, extra_bytes + attributer->attribute_starts[index], attributer->attribute_sizes[index]);
+      return TRUE;
+    }
+    return FALSE;
+  };
 
-  // typed and offset attribute functions (more efficient)
+  inline BOOL set_attribute(I32 index, const U8* data) 
+  {
+    if (has_attribute(index))
+    {
+      memcpy(extra_bytes + attributer->attribute_starts[index], data, attributer->attribute_sizes[index]);
+      return TRUE;
+    }
+    return FALSE;
+  };
 
-  inline void get_extra_attribute(I32 offset, U8 &data) const { data = extra_bytes[offset]; }
-  inline void set_extra_attribute(I32 offset, U8 data) { extra_bytes[offset] = data; }
-  inline void get_extra_attribute(I32 offset, I8 &data) const { data = (I8)(extra_bytes[offset]); }
-  inline void set_extra_attribute(I32 offset, I8 data) { extra_bytes[offset] = data; }
-  inline void get_extra_attribute(I32 offset, U16 &data) const { data = *((U16*)(extra_bytes + offset)); }
-  inline void set_extra_attribute(I32 offset, U16 data) { *((U16*)(extra_bytes + offset)) = data; }
-  inline void get_extra_attribute(I32 offset, I16 &data) const { data = *((I16*)(extra_bytes + offset)); }
-  inline void set_extra_attribute(I32 offset, I16 data) { *((I16*)(extra_bytes + offset)) = data; }
-  inline void get_extra_attribute(I32 offset, U32 &data) const { data = *((U32*)(extra_bytes + offset)); }
-  inline void set_extra_attribute(I32 offset, U32 data) { *((U32*)(extra_bytes + offset)) = data; }
-  inline void get_extra_attribute(I32 offset, I32 &data) const { data = *((I32*)(extra_bytes + offset)); }
-  inline void set_extra_attribute(I32 offset, I32 data) { *((I32*)(extra_bytes + offset)) = data; }
-  inline void get_extra_attribute(I32 offset, U64 &data) const { data = *((U64*)(extra_bytes + offset)); }
-  inline void set_extra_attribute(I32 offset, U64 data) { *((U64*)(extra_bytes + offset)) = data; }
-  inline void get_extra_attribute(I32 offset, I64 &data) const { data = *((I64*)(extra_bytes + offset)); }
-  inline void set_extra_attribute(I32 offset, I64 data) { *((I64*)(extra_bytes + offset)) = data; }
-  inline void get_extra_attribute(I32 offset, F32 &data) const { data = *((F32*)(extra_bytes + offset)); }
-  inline void set_extra_attribute(I32 offset, F32 data) { *((F32*)(extra_bytes + offset)) = data; }
-  inline void get_extra_attribute(I32 offset, F64 &data) const { data = *((F64*)(extra_bytes + offset)); }
-  inline void set_extra_attribute(I32 offset, F64 data) { *((F64*)(extra_bytes + offset)) = data; }
+  inline const CHAR* get_attribute_name(I32 index) const
+  {
+    if (has_attribute(index))
+    {
+      return attributer->attributes[index].name;
+    }
+    return 0;
+  };
+
+  inline F64 get_attribute_as_float(I32 index) const
+  {
+    if (has_attribute(index))
+    {
+      return attributer->attributes[index].get_value_as_float(extra_bytes + attributer->attribute_starts[index]);
+    }
+    return 0.0;
+  };
+
+  // typed and offset functions for attributes in extra bytes (more efficient)
+
+  inline void get_attribute(I32 start, U8 &data) const { data = extra_bytes[start]; };
+  inline void set_attribute(I32 start, U8 data) { extra_bytes[start] = data; };
+  inline void get_attribute(I32 start, I8 &data) const { data = (I8)(extra_bytes[start]); };
+  inline void set_attribute(I32 start, I8 data) { extra_bytes[start] = data; };
+  inline void get_attribute(I32 start, U16 &data) const { data = *((U16*)(extra_bytes + start)); };
+  inline void set_attribute(I32 start, U16 data) { *((U16*)(extra_bytes + start)) = data; };
+  inline void get_attribute(I32 start, I16 &data) const { data = *((I16*)(extra_bytes + start)); };
+  inline void set_attribute(I32 start, I16 data) { *((I16*)(extra_bytes + start)) = data; };
+  inline void get_attribute(I32 start, U32 &data) const { data = *((U32*)(extra_bytes + start)); };
+  inline void set_attribute(I32 start, U32 data) { *((U32*)(extra_bytes + start)) = data; };
+  inline void get_attribute(I32 start, I32 &data) const { data = *((I32*)(extra_bytes + start)); };
+  inline void set_attribute(I32 start, I32 data) { *((I32*)(extra_bytes + start)) = data; };
+  inline void get_attribute(I32 start, U64 &data) const { data = *((U64*)(extra_bytes + start)); };
+  inline void set_attribute(I32 start, U64 data) { *((U64*)(extra_bytes + start)) = data; };
+  inline void get_attribute(I32 start, I64 &data) const { data = *((I64*)(extra_bytes + start)); };
+  inline void set_attribute(I32 start, I64 data) { *((I64*)(extra_bytes + start)) = data; };
+  inline void get_attribute(I32 start, F32 &data) const { data = *((F32*)(extra_bytes + start)); };
+  inline void set_attribute(I32 start, F32 data) { *((F32*)(extra_bytes + start)) = data; };
+  inline void get_attribute(I32 start, F64 &data) const { data = *((F64*)(extra_bytes + start)); };
+  inline void set_attribute(I32 start, F64 data) { *((F64*)(extra_bytes + start)) = data; };
 
   ~LASpoint()
   {
@@ -943,22 +1130,24 @@ class LASvlr
 {
 public:
   U16 reserved;
-  I8 user_id[16]; 
+  CHAR user_id[16]; 
   U16 record_id;
   U16 record_length_after_header;
   CHAR description[32];
   U8* data;
+  LASvlr() { memset(this, 0, sizeof(LASvlr)); };
 };
 
 class LASevlr
 {
 public:
   U16 reserved;
-  I8 user_id[16]; 
+  CHAR user_id[16]; 
   U16 record_id;
   I64 record_length_after_header;
   CHAR description[32];
   U8* data;
+  LASevlr() { memset(this, 0, sizeof(LASevlr)); };
 };
 
 class LASvlr_geo_keys
@@ -1038,7 +1227,7 @@ class LASheader : public LASquantizer, public LASattributer
 {
 public:
   CHAR file_signature[4];
-  U16 file_source_id;
+  U16 file_source_ID;
   U16 global_encoding;
   U32 project_ID_GUID_data_1;
   U16 project_ID_GUID_data_2;
@@ -1161,6 +1350,7 @@ public:
     if (user_data_in_header)
     {
       header_size -= user_data_in_header_size;
+      offset_to_point_data -= user_data_in_header_size;
       delete [] user_data_in_header;
       user_data_in_header = 0;
       user_data_in_header_size = 0;
@@ -1175,7 +1365,7 @@ public:
       for (i = 0; i < number_of_variable_length_records; i++)
       {
         offset_to_point_data -= (54 + vlrs[i].record_length_after_header);
-        if (vlrs[i].data && (vlrs[i].data != (U8*)extra_attributes))
+        if (vlrs[i].data && (vlrs[i].data != (U8*)attributes))
         {
           delete [] vlrs[i].data;
         }
@@ -1193,18 +1383,24 @@ public:
       vlr_wave_packet_descr = 0;
       number_of_variable_length_records = 0;
     }
+  };
+
+  void clean_evlrs()
+  {
     if (evlrs)
     {
       U32 i;
       for (i = 0; i < number_of_extended_variable_length_records; i++)
       {
-        if (evlrs[i].data && (evlrs[i].data != (U8*)extra_attributes))
+        if (evlrs[i].data && (evlrs[i].data != (U8*)attributes))
         {
           delete [] evlrs[i].data;
         }
       }
       free(evlrs);
       evlrs = 0;
+      start_of_first_extended_variable_length_record = 0;
+      number_of_extended_variable_length_records = 0;
     }
   };
 
@@ -1250,13 +1446,32 @@ public:
   {
     clean_user_data_in_header();
     clean_vlrs();
+    clean_evlrs();
     clean_laszip();
     clean_lastiling();
     clean_lasoriginal();
     clean_user_data_after_header();
-    clean_extra_attributes();
+    clean_attributes();
     clean_las_header();
   };
+
+  void unlink()
+  {
+    user_data_in_header_size = 0;
+    user_data_in_header = 0;
+    vlrs = 0;
+    number_of_variable_length_records = 0;
+    evlrs = 0;
+    start_of_first_extended_variable_length_record = 0;
+    number_of_extended_variable_length_records = 0;
+    laszip = 0;
+    vlr_lastiling = 0;
+    vlr_lasoriginal = 0;
+    user_data_after_header_size = 0;
+    user_data_after_header = 0;
+    number_attributes = 0;
+    offset_to_point_data = header_size;
+  }
 
   LASheader & operator=(const LASquantizer & quantizer)
   {
@@ -1318,9 +1533,12 @@ public:
     return FALSE;
   }
 
-  void add_vlr(const char* user_id, U16 record_id, U16 record_length_after_header, U8* data)
+  // note that data needs to be allocated with new [] and not malloc and that LASheader
+  // will become the owner over this and manage its deallocation 
+  void add_vlr(const CHAR* user_id, const U16 record_id, const U16 record_length_after_header, U8* data, const BOOL keep_description=FALSE, const CHAR* description=0)
   {
     U32 i = 0;
+    BOOL found_description = FALSE;
     if (vlrs)
     {
       for (i = 0; i < number_of_variable_length_records; i++)
@@ -1331,7 +1549,9 @@ public:
           {
             offset_to_point_data -= vlrs[i].record_length_after_header;
             delete [] vlrs[i].data;
+            vlrs[i].data = 0;
           }
+          found_description = TRUE;
           break;
         }
       }
@@ -1352,7 +1572,18 @@ public:
     strncpy(vlrs[i].user_id, user_id, 16);
     vlrs[i].record_id = record_id;
     vlrs[i].record_length_after_header = record_length_after_header;
-    sprintf(vlrs[i].description, "by LAStools of Martin Isenburg");
+    if (keep_description && found_description)
+    {
+      // do nothing
+    }
+    else if (description)
+    {
+      sprintf(vlrs[i].description, "%31s", description);
+    }
+    else
+    {
+      sprintf(vlrs[i].description, "by LAStools of rapidlasso GmbH");
+    }
     if (record_length_after_header)
     {
       offset_to_point_data += record_length_after_header;
@@ -1364,7 +1595,7 @@ public:
     }
   };
 
-  const LASvlr* get_vlr(const char* user_id, U16 record_id) const
+  const LASvlr* get_vlr(const CHAR* user_id, U16 record_id) const
   {
     U32 i = 0;
     for (i = 0; i < number_of_variable_length_records; i++)
@@ -1405,7 +1636,7 @@ public:
     return FALSE;
   };
 
-  BOOL remove_vlr(const char* user_id, U16 record_id)
+  BOOL remove_vlr(const CHAR* user_id, U16 record_id)
   {
     U32 i;
     for (i = 0; i < number_of_variable_length_records; i++)
@@ -1594,14 +1825,14 @@ public:
     }
   }
 
-  void update_extra_bytes_vlr()
+  void update_extra_bytes_vlr(const BOOL keep_description=FALSE)
   {
-    if (number_extra_attributes)
+    if (number_attributes)
     {
-      U16 record_length_after_header = sizeof(LASattribute)*number_extra_attributes;
+      U16 record_length_after_header = sizeof(LASattribute)*number_attributes;
       U8* data = new U8[record_length_after_header];
-      memcpy(data, extra_attributes, record_length_after_header);
-      add_vlr("LASF_Spec", 4, record_length_after_header, data);
+      memcpy(data, attributes, record_length_after_header);
+      add_vlr("LASF_Spec", 4, record_length_after_header, data, keep_description);
     }
     else
     {

@@ -24,7 +24,7 @@
 
     This is free software; you can redistribute and/or modify it under the
     terms of the GNU Lesser General Licence as published by the Free Software
-    Foundation except for (R). See the LICENSE.txt file for more information.
+    Foundation. See the LICENSE.txt file for more information.
 
     This software is distributed WITHOUT ANY WARRANTY and without even the
     implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
@@ -269,6 +269,7 @@ int main(int argc, char *argv[])
       argv[i][0] = '\0';
 #else
       fprintf(stderr, "WARNING: not compiled with multi-core batching. ignoring '-cores' ...\n");
+      i++;
 #endif
     }
     else if (strcmp(argv[i],"-quiet") == 0)
@@ -338,18 +339,18 @@ int main(int argc, char *argv[])
       {
         if (((i+5) < argc) && (atof(argv[i+5]) != 0.0))
         {
-          lasreadopener.add_extra_attribute(atoi(argv[i+1]), argv[i+2], argv[i+3], atof(argv[i+4]), atof(argv[i+5]));
+          lasreadopener.add_attribute(atoi(argv[i+1]), argv[i+2], argv[i+3], atof(argv[i+4]), atof(argv[i+5]));
           i+=5;
         }
         else
         {
-          lasreadopener.add_extra_attribute(atoi(argv[i+1]), argv[i+2], argv[i+3], atof(argv[i+4]));
+          lasreadopener.add_attribute(atoi(argv[i+1]), argv[i+2], argv[i+3], atof(argv[i+4]));
           i+=4;
         }
       }
       else
       {
-        lasreadopener.add_extra_attribute(atoi(argv[i+1]), argv[i+2], argv[i+3]);
+        lasreadopener.add_attribute(atoi(argv[i+1]), argv[i+2], argv[i+3]);
         i+=3;
       }
     }
@@ -536,7 +537,7 @@ int main(int argc, char *argv[])
     }
     else
     {
-      strncpy(lasreader->header.system_identifier, "LAStools (c) by Martin Isenburg", 32);
+      strncpy(lasreader->header.system_identifier, "LAStools (c) by rapidlasso GmbH", 32);
       lasreader->header.system_identifier[31] = '\0';
     }
 
@@ -631,7 +632,7 @@ int main(int argc, char *argv[])
       // maybe set classification
       if (set_classification != -1)
       {
-        lasreader->point.classification = set_classification;
+        lasreader->point.set_classification(set_classification);
       }
       // write the point
       laswriter->write_point(&lasreader->point);

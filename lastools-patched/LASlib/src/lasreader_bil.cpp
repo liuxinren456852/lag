@@ -17,7 +17,7 @@
 
     This is free software; you can redistribute and/or modify it under the
     terms of the GNU Lesser General Licence as published by the Free Software
-    Foundation except for (R). See the LICENSE.txt file for more information.
+    Foundation. See the LICENSE.txt file for more information.
 
     This software is distributed WITHOUT ANY WARRANTY and without even the
     implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
@@ -101,7 +101,7 @@ BOOL LASreaderBIL::open(const CHAR* file_name)
 
   // populate the header as much as it makes sense
 
-  sprintf(header.system_identifier, "LAStools (c) by Martin Isenburg");
+  sprintf(header.system_identifier, "LAStools (c) by rapidlasso GmbH");
   sprintf(header.generating_software, "via LASreaderBIL (%d)", LAS_TOOLS_VERSION);
 
   // maybe set creation date
@@ -254,13 +254,22 @@ BOOL LASreaderBIL::open(const CHAR* file_name)
 
   header.number_of_point_records = (U32)npoints;
 
-  // populate scale and offset
+  if (npoints)
+  {
+    // populate scale and offset
 
-  populate_scale_and_offset();
+    populate_scale_and_offset();
 
-  // check bounding box for this scale and offset
+    // check bounding box for this scale and offset
 
-  populate_bounding_box();
+    populate_bounding_box();
+  }
+  else
+  {
+    fprintf(stderr,"WARNING: BIL raster contains only no data values\n");
+    header.min_z = 0;
+    header.max_z = 0;
+  }
 
   // reopen
 
@@ -338,7 +347,7 @@ BOOL LASreaderBIL::read_hdr_file(const CHAR* file_name)
     }
     else if (strstr(line, "ncols") || strstr(line, "NCOLS"))
     {
-      sscanf(line, "ncols %d", &ncols);
+      sscanf(line, "%s %d", dummy, &ncols);
     }
     else if (strstr(line, "nrows") || strstr(line, "NROWS"))
     {
@@ -355,10 +364,16 @@ BOOL LASreaderBIL::read_hdr_file(const CHAR* file_name)
     else if (strstr(line, "layout") || strstr(line, "LAYOUT"))
     {
       CHAR layout[32];
-      sscanf(line, "%s %s", dummy, layout);
-      if (strcmp(layout, "bil") && strcmp(layout, "BIL"))
+      if (sscanf(line, "%s %s", dummy, layout) == 2)
       {
-        fprintf(stderr, "WARNING: layout '%s' not recognized by LASreader_bil\n", layout);
+        if (strcmp(layout, "bil") && strcmp(layout, "BIL"))
+        {
+          fprintf(stderr, "WARNING: %s '%s' not recognized by LASreader_bil\n", dummy, layout);
+        }
+      }
+      else
+      {
+        fprintf(stderr, "WARNING: argument of %s missing for LASreader_bil\n", dummy);
       }
     }
     else if (strstr(line, "pixeltype") || strstr(line, "PIXELTYPE"))
@@ -438,7 +453,7 @@ BOOL LASreaderBIL::read_blw_file(const CHAR* file_name)
     return FALSE;
   }
 
-  // create *.hdr file name
+  // create *.blw file name
 
   I32 len = strlen(file_name) - 3;
   CHAR* file_name_bwl = strdup(file_name);
@@ -464,19 +479,17 @@ BOOL LASreaderBIL::read_blw_file(const CHAR* file_name)
     file_name_bwl[len+3] = 'W';
 
     file = fopen(file_name_bwl, "r");
-    free(file_name_bwl);
 
     if (file == 0)
     {
       file_name_bwl[len] = '\0';
       fprintf(stderr, "WARNING: cannot open files '%s.blw' or '%s.BLW'\n", file_name_bwl, file_name_bwl);
+      free(file_name_bwl);
       return FALSE;
     }
   }
-  else
-  {
-    free(file_name_bwl);
-  }
+
+  free(file_name_bwl);
 
   CHAR line[512];
 
@@ -783,19 +796,19 @@ void LASreaderBIL::populate_bounding_box()
 {
   // compute quantized and then unquantized bounding box
 
-  F64 dequant_min_x = header.get_x(header.get_x(header.min_x));
-  F64 dequant_max_x = header.get_x(header.get_x(header.max_x));
-  F64 dequant_min_y = header.get_y(header.get_y(header.min_y));
-  F64 dequant_max_y = header.get_y(header.get_y(header.max_y));
-  F64 dequant_min_z = header.get_z(header.get_z(header.min_z));
-  F64 dequant_max_z = header.get_z(header.get_z(header.max_z));
+  F64 dequant_min_x = header.get_x(header.get_X(header.min_x));
+  F64 dequant_max_x = header.get_x(header.get_X(header.max_x));
+  F64 dequant_min_y = header.get_y(header.get_Y(header.min_y));
+  F64 dequant_max_y = header.get_y(header.get_Y(header.max_y));
+  F64 dequant_min_z = header.get_z(header.get_Z(header.min_z));
+  F64 dequant_max_z = header.get_z(header.get_Z(header.max_z));
 
   // make sure there is not sign flip
 
   if ((header.min_x > 0) != (dequant_min_x > 0))
   {
     fprintf(stderr, "WARNING: quantization sign flip for min_x from %g to %g.\n", header.min_x, dequant_min_x);
-    fprintf(stderr, "         set scale factor for x coarser than %g with '-scale'\n", header.x_scale_factor);
+    fprintf(stderr, "         set scale factor for x coarser than %g with '-rescale'\n", header.x_scale_factor);
   }
   else
   {
@@ -804,7 +817,7 @@ void LASreaderBIL::populate_bounding_box()
   if ((header.max_x > 0) != (dequant_max_x > 0))
   {
     fprintf(stderr, "WARNING: quantization sign flip for max_x from %g to %g.\n", header.max_x, dequant_max_x);
-    fprintf(stderr, "         set scale factor for x coarser than %g with '-scale'\n", header.x_scale_factor);
+    fprintf(stderr, "         set scale factor for x coarser than %g with '-rescale'\n", header.x_scale_factor);
   }
   else
   {
@@ -813,7 +826,7 @@ void LASreaderBIL::populate_bounding_box()
   if ((header.min_y > 0) != (dequant_min_y > 0))
   {
     fprintf(stderr, "WARNING: quantization sign flip for min_y from %g to %g.\n", header.min_y, dequant_min_y);
-    fprintf(stderr, "         set scale factor for y coarser than %g with '-scale'\n", header.y_scale_factor);
+    fprintf(stderr, "         set scale factor for y coarser than %g with '-rescale'\n", header.y_scale_factor);
   }
   else
   {
@@ -822,7 +835,7 @@ void LASreaderBIL::populate_bounding_box()
   if ((header.max_y > 0) != (dequant_max_y > 0))
   {
     fprintf(stderr, "WARNING: quantization sign flip for max_y from %g to %g.\n", header.max_y, dequant_max_y);
-    fprintf(stderr, "         set scale factor for y coarser than %g with '-scale'\n", header.y_scale_factor);
+    fprintf(stderr, "         set scale factor for y coarser than %g with '-rescale'\n", header.y_scale_factor);
   }
   else
   {
@@ -831,7 +844,7 @@ void LASreaderBIL::populate_bounding_box()
   if ((header.min_z > 0) != (dequant_min_z > 0))
   {
     fprintf(stderr, "WARNING: quantization sign flip for min_z from %g to %g.\n", header.min_z, dequant_min_z);
-    fprintf(stderr, "         set scale factor for z coarser than %g with '-scale'\n", header.z_scale_factor);
+    fprintf(stderr, "         set scale factor for z coarser than %g with '-rescale'\n", header.z_scale_factor);
   }
   else
   {
@@ -840,7 +853,7 @@ void LASreaderBIL::populate_bounding_box()
   if ((header.max_z > 0) != (dequant_max_z > 0))
   {
     fprintf(stderr, "WARNING: quantization sign flip for max_z from %g to %g.\n", header.max_z, dequant_max_z);
-    fprintf(stderr, "         set scale factor for z coarser than %g with '-scale'\n", header.z_scale_factor);
+    fprintf(stderr, "         set scale factor for z coarser than %g with '-rescale'\n", header.z_scale_factor);
   }
   else
   {

@@ -13,11 +13,11 @@
 
   COPYRIGHT:
 
-    (c) 2007-2012, martin isenburg, rapidlasso - fast tools to catch reality
+    (c) 2007-2013, martin isenburg, rapidlasso - fast tools to catch reality
 
     This is free software; you can redistribute and/or modify it under the
     terms of the GNU Lesser General Licence as published by the Free Software
-    Foundation except for (R). See the LICENSE.txt file for more information.
+    Foundation. See the LICENSE.txt file for more information.
 
     This software is distributed WITHOUT ANY WARRANTY and without even the
     implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
@@ -154,13 +154,13 @@ void LASquadtree::get_cell_bounding_box(const F64 x, const F64 y, F32* min, F32*
   get_cell_bounding_box(x, y, levels, min, max);
 }
 
-// returns the bounding box of the cell with the spedified level_index at the specified level
+// returns the bounding box of the cell with the specified level_index at the specified level
 void LASquadtree::get_cell_bounding_box(U32 level_index, U32 level, F32* min, F32* max) const
 {
-  volatile float cell_mid_x;
-  volatile float cell_mid_y;
-  float cell_min_x, cell_max_x;
-  float cell_min_y, cell_max_y;
+  volatile F32 cell_mid_x;
+  volatile F32 cell_mid_y;
+  F32 cell_min_x, cell_max_x;
+  F32 cell_min_y, cell_max_y;
   
   cell_min_x = min_x;
   cell_max_x = max_x;
@@ -203,13 +203,68 @@ void LASquadtree::get_cell_bounding_box(U32 level_index, U32 level, F32* min, F3
   }
 }
 
-// returns the bounding box of the cell with the spedified level_index
+// returns the bounding box of the cell with the specified level_index at the specified level
+void LASquadtree::get_cell_bounding_box(U32 level_index, U32 level, F64* min, F64* max) const
+{
+  volatile F64 cell_mid_x;
+  volatile F64 cell_mid_y;
+  F64 cell_min_x, cell_max_x;
+  F64 cell_min_y, cell_max_y;
+  
+  cell_min_x = min_x;
+  cell_max_x = max_x;
+  cell_min_y = min_y;
+  cell_max_y = max_y;
+
+  U32 index;
+  while (level)
+  {
+    index = (level_index >>(2*(level-1)))&3;
+    cell_mid_x = (cell_min_x + cell_max_x)/2;
+    cell_mid_y = (cell_min_y + cell_max_y)/2;
+    if (index & 1)
+    {
+      cell_min_x = cell_mid_x;
+    }
+    else
+    {
+      cell_max_x = cell_mid_x;
+    }
+    if (index & 2)
+    {
+      cell_min_y = cell_mid_y;
+    }
+    else
+    {
+      cell_max_y = cell_mid_y;
+    }
+    level--;
+  }
+  if (min)
+  {
+    min[0] = cell_min_x;
+    min[1] = cell_min_y;
+  }
+  if (max)
+  {
+    max[0] = cell_max_x;
+    max[1] = cell_max_y;
+  }
+}
+
+// returns the bounding box of the cell with the specified level_index
 void LASquadtree::get_cell_bounding_box(U32 level_index, F32* min, F32* max) const
 {
   get_cell_bounding_box(level_index, levels, min, max);
 }
 
-// returns the bounding box of the cell that x & y fall into
+// returns the bounding box of the cell with the specified level_index
+void LASquadtree::get_cell_bounding_box(U32 level_index, F64* min, F64* max) const
+{
+  get_cell_bounding_box(level_index, levels, min, max);
+}
+
+// returns the bounding box of the cell with the specified cell_index
 void LASquadtree::get_cell_bounding_box(const I32 cell_index, F32* min, F32* max) const
 {
   U32 level = get_level((U32)cell_index);
@@ -897,7 +952,7 @@ void LASquadtree::intersect_rectangle_with_cells_adaptive(const F64 r_min_x, con
   U32 cell_index = get_cell_index(level_index, level);
   U32 adaptive_pos = cell_index/32;
   U32 adaptive_bit = ((U32)1) << (cell_index%32);
-  if (adaptive[adaptive_pos] & adaptive_bit)
+  if ((level < levels) && (adaptive[adaptive_pos] & adaptive_bit))
   {
     level++;
     level_index <<= 2;
@@ -1066,7 +1121,7 @@ void LASquadtree::intersect_tile_with_cells_adaptive(const F32 ll_x, const F32 l
   U32 cell_index = get_cell_index(level_index, level);
   U32 adaptive_pos = cell_index/32;
   U32 adaptive_bit = ((U32)1) << (cell_index%32);
-  if (adaptive[adaptive_pos] & adaptive_bit)
+  if ((level < levels) && (adaptive[adaptive_pos] & adaptive_bit))
   {
     level++;
     level_index <<= 2;
@@ -1238,7 +1293,7 @@ void LASquadtree::intersect_circle_with_cells_adaptive(const F64 center_x, const
   U32 cell_index = get_cell_index(level_index, level);
   U32 adaptive_pos = cell_index/32;
   U32 adaptive_bit = ((U32)1) << (cell_index%32);
-  if (adaptive[adaptive_pos] & adaptive_bit)
+  if ((level < levels) && (adaptive[adaptive_pos] & adaptive_bit))
   {
     level++;
     level_index <<= 2;
@@ -1523,6 +1578,18 @@ BOOL LASquadtree::setup(F64 bb_min_x, F64 bb_max_x, F64 bb_min_y, F64 bb_max_y, 
   return TRUE;
 }
 
+BOOL LASquadtree::tiling_setup(F32 min_x, F32 max_x, F32 min_y, F32 max_y, U32 levels)
+{
+  this->min_x = min_x;
+  this->max_x = max_x;
+  this->min_y = min_y;
+  this->max_y = max_y;
+  this->levels = levels;
+  this->sub_level = 0;
+  this->sub_level_index = 0;
+  return TRUE;
+}
+
 BOOL LASquadtree::subtiling_setup(F32 min_x, F32 max_x, F32 min_y, F32 max_y, U32 sub_level, U32 sub_level_index, U32 levels)
 {
   this->min_x = min_x;
@@ -1554,6 +1621,7 @@ LASquadtree::LASquadtree()
   cells_x = 0;
   cells_y = 0;
   sub_level = 0;
+  sub_level_index = 0;
   level_offset[0] = 0;
   for (l = 0; l < 23; l++)
   {

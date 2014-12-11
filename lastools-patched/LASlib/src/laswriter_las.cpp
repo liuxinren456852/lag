@@ -17,7 +17,7 @@
 
     This is free software; you can redistribute and/or modify it under the
     terms of the GNU Lesser General Licence as published by the Free Software
-    Foundation except for (R). See the LICENSE.txt file for more information.
+    Foundation. See the LICENSE.txt file for more information.
 
     This software is distributed WITHOUT ANY WARRANTY and without even the
     implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
@@ -56,7 +56,7 @@ BOOL LASwriterLAS::open(const LASheader* header, U32 compressor, I32 requested_v
   return open(out, header, compressor, requested_version, chunk_size);
 }
 
-BOOL LASwriterLAS::open(const char* file_name, const LASheader* header, U32 compressor, I32 requested_version, I32 chunk_size, U32 io_buffer_size)
+BOOL LASwriterLAS::open(const char* file_name, const LASheader* header, U32 compressor, I32 requested_version, I32 chunk_size, I32 io_buffer_size)
 {
   if (file_name == 0)
   {
@@ -73,7 +73,7 @@ BOOL LASwriterLAS::open(const char* file_name, const LASheader* header, U32 comp
 
   if (setvbuf(file, NULL, _IOFBF, io_buffer_size) != 0)
   {
-    fprintf(stderr, "WARNING: setvbuf() failed with buffer size %u\n", io_buffer_size);
+    fprintf(stderr, "WARNING: setvbuf() failed with buffer size %d\n", io_buffer_size);
   }
 
   ByteStreamOut* out;
@@ -180,6 +180,7 @@ BOOL LASwriterLAS::open(ByteStreamOut* stream, const LASheader* header, U32 comp
     laszip->setup(point.num_items, point.items, compressor);
     if (chunk_size > -1) laszip->set_chunk_size((U32)chunk_size);
     if (compressor == LASZIP_COMPRESSOR_NONE) laszip->request_version(0);
+    else if (chunk_size == 0) { fprintf(stderr,"ERROR: adaptive chunking is depricated\n"); return FALSE; }
     else if (requested_version) laszip->request_version(requested_version);
     else laszip->request_version(2);
     laszip_vlr_data_size = 34 + 6*laszip->num_items;
@@ -216,9 +217,9 @@ BOOL LASwriterLAS::open(ByteStreamOut* stream, const LASheader* header, U32 comp
     fprintf(stderr,"ERROR: writing header->file_signature\n");
     return FALSE;
   }
-  if (!stream->put16bitsLE((U8*)&(header->file_source_id)))
+  if (!stream->put16bitsLE((U8*)&(header->file_source_ID)))
   {
-    fprintf(stderr,"ERROR: writing header->file_source_id\n");
+    fprintf(stderr,"ERROR: writing header->file_source_ID\n");
     return FALSE;
   }
   if (!stream->put16bitsLE((U8*)&(header->global_encoding)))
@@ -413,28 +414,20 @@ BOOL LASwriterLAS::open(ByteStreamOut* stream, const LASheader* header, U32 comp
   // special handling for LAS 1.3 or higher.
   if (header->version_minor >= 3)
   {
-    // nobody currently includes waveform. we set the field always to zero
-    if (header->start_of_waveform_data_packet_record != 0)
+    U64 start_of_waveform_data_packet_record = header->start_of_waveform_data_packet_record;
+    if (start_of_waveform_data_packet_record != 0)
     {
 #ifdef _WIN32
-      fprintf(stderr,"WARNING: header->start_of_waveform_data_packet_record is %I64d. writing 0 instead.\n", header->start_of_waveform_data_packet_record);
+      fprintf(stderr,"WARNING: header->start_of_waveform_data_packet_record is %I64d. writing 0 instead.\n", start_of_waveform_data_packet_record);
 #else
-      fprintf(stderr,"WARNING: header->start_of_waveform_data_packet_record is %lld. writing 0 instead.\n", header->start_of_waveform_data_packet_record);
+      fprintf(stderr,"WARNING: header->start_of_waveform_data_packet_record is %lld. writing 0 instead.\n", start_of_waveform_data_packet_record);
 #endif
-      U64 start_of_waveform_data_packet_record = 0;
-      if (!stream->put64bitsLE((U8*)&start_of_waveform_data_packet_record))
-      {
-        fprintf(stderr,"ERROR: writing start_of_waveform_data_packet_record\n");
-        return FALSE;
-      }
+      start_of_waveform_data_packet_record = 0;
     }
-    else
+    if (!stream->put64bitsLE((U8*)&start_of_waveform_data_packet_record))
     {
-      if (!stream->put64bitsLE((U8*)&(header->start_of_waveform_data_packet_record)))
-      {
-        fprintf(stderr,"ERROR: writing header->start_of_waveform_data_packet_record\n");
-        return FALSE;
-      }
+      fprintf(stderr,"ERROR: writing start_of_waveform_data_packet_record\n");
+      return FALSE;
     }
   }
 
@@ -443,12 +436,28 @@ BOOL LASwriterLAS::open(ByteStreamOut* stream, const LASheader* header, U32 comp
   {
     writing_las_1_4 = TRUE;
 
-    if (!stream->put64bitsLE((U8*)&(header->start_of_first_extended_variable_length_record)))
+    U64 start_of_first_extended_variable_length_record = header->start_of_first_extended_variable_length_record;
+    if (start_of_first_extended_variable_length_record != 0)
+    {
+#ifdef _WIN32
+      fprintf(stderr,"WARNING: EVLRs not supported. header->start_of_first_extended_variable_length_record is %I64d. writing 0 instead.\n", start_of_first_extended_variable_length_record);
+#else
+      fprintf(stderr,"WARNING: EVLRs not supported. header->start_of_first_extended_variable_length_record is %lld. writing 0 instead.\n", start_of_first_extended_variable_length_record);
+#endif
+      start_of_first_extended_variable_length_record = 0;
+    }
+    if (!stream->put64bitsLE((U8*)&(start_of_first_extended_variable_length_record)))
     {
       fprintf(stderr,"ERROR: writing header->start_of_first_extended_variable_length_record\n");
       return FALSE;
     }
-    if (!stream->put32bitsLE((U8*)&(header->number_of_extended_variable_length_records)))
+    U32 number_of_extended_variable_length_records = header->number_of_extended_variable_length_records;
+    if (number_of_extended_variable_length_records != 0)
+    {
+      fprintf(stderr,"WARNING: EVLRs not supported. header->number_of_extended_variable_length_records is %u. writing 0 instead.\n", number_of_extended_variable_length_records);
+      number_of_extended_variable_length_records = 0;
+    }
+    if (!stream->put32bitsLE((U8*)&(number_of_extended_variable_length_records)))
     {
       fprintf(stderr,"ERROR: writing header->number_of_extended_variable_length_records\n");
       return FALSE;
@@ -598,16 +607,16 @@ BOOL LASwriterLAS::open(ByteStreamOut* stream, const LASheader* header, U32 comp
       return FALSE;
     }
     // write the data following the header of the variable length record
-    //     U16  compressor         2 bytes 
-    //     U16  coder              2 bytes 
-    //     U8   version_major      1 byte 
-    //     U8   version_minor      1 byte
-    //     U16  version_revision   2 bytes
-    //     U32  options            4 bytes 
-    //     U32  chunk_size         4 bytes
-    //     I64  num_points         8 bytes
-    //     I64  num_bytes          8 bytes
-    //     U16  num_items          2 bytes
+    //     U16  compressor                2 bytes 
+    //     U32  coder                     2 bytes 
+    //     U8   version_major             1 byte 
+    //     U8   version_minor             1 byte
+    //     U16  version_revision          2 bytes
+    //     U32  options                   4 bytes 
+    //     I32  chunk_size                4 bytes
+    //     I64  number_of_special_evlrs   8 bytes
+    //     I64  offset_to_special_evlrs   8 bytes
+    //     U16  num_items                 2 bytes
     //        U16 type                2 bytes * num_items
     //        U16 size                2 bytes * num_items
     //        U16 version             2 bytes * num_items
@@ -648,14 +657,14 @@ BOOL LASwriterLAS::open(ByteStreamOut* stream, const LASheader* header, U32 comp
       fprintf(stderr,"ERROR: writing chunk_size %d\n", laszip->chunk_size);
       return FALSE;
     }
-    if (!stream->put64bitsLE((U8*)&(laszip->num_points)))
+    if (!stream->put64bitsLE((U8*)&(laszip->number_of_special_evlrs)))
     {
-      fprintf(stderr,"ERROR: writing num_points %d\n", (I32)laszip->num_points);
+      fprintf(stderr,"ERROR: writing number_of_special_evlrs %d\n", (I32)laszip->number_of_special_evlrs);
       return FALSE;
     }
-    if (!stream->put64bitsLE((U8*)&(laszip->num_bytes)))
+    if (!stream->put64bitsLE((U8*)&(laszip->offset_to_special_evlrs)))
     {
-      fprintf(stderr,"ERROR: writing num_bytes %d\n", (I32)laszip->num_bytes);
+      fprintf(stderr,"ERROR: writing offset_to_special_evlrs %d\n", (I32)laszip->offset_to_special_evlrs);
       return FALSE;
     }
     if (!stream->put16bitsLE((U8*)&(laszip->num_items)))
@@ -904,10 +913,10 @@ BOOL LASwriterLAS::update_header(const LASheader* header, BOOL use_inventory, BO
   }
   if (!stream->isSeekable())
   {
-    fprintf(stderr,"ERROR: stream is not seekable\n");
+    fprintf(stderr,"WARNING: stream not seekable. cannot update header.\n");
     return FALSE;
   }
-  if (use_inventory && inventory.active())
+  if (use_inventory)
   {
     stream->seek(header_start_position+107);
     if (!stream->put32bitsLE((U8*)&(inventory.number_of_point_records)))
@@ -926,40 +935,40 @@ BOOL LASwriterLAS::update_header(const LASheader* header, BOOL use_inventory, BO
     }
     stream->seek(header_start_position+179);
     F64 value;
-    value = quantizer.get_x(inventory.raw_max_x);
+    value = quantizer.get_x(inventory.max_X);
     if (!stream->put64bitsLE((U8*)&value))
     {
-      fprintf(stderr,"ERROR: updating inventory.max_x\n");
+      fprintf(stderr,"ERROR: updating inventory.max_X\n");
       return FALSE;
     }
-    value = quantizer.get_x(inventory.raw_min_x);
+    value = quantizer.get_x(inventory.min_X);
     if (!stream->put64bitsLE((U8*)&value))
     {
-      fprintf(stderr,"ERROR: updating inventory.min_x\n");
+      fprintf(stderr,"ERROR: updating inventory.min_X\n");
       return FALSE;
     }
-    value = quantizer.get_y(inventory.raw_max_y);
+    value = quantizer.get_y(inventory.max_Y);
     if (!stream->put64bitsLE((U8*)&value))
     {
-      fprintf(stderr,"ERROR: updating inventory.max_y\n");
+      fprintf(stderr,"ERROR: updating inventory.max_Y\n");
       return FALSE;
     }
-    value = quantizer.get_y(inventory.raw_min_y);
+    value = quantizer.get_y(inventory.min_Y);
     if (!stream->put64bitsLE((U8*)&value))
     {
-      fprintf(stderr,"ERROR: updating inventory.min_y\n");
+      fprintf(stderr,"ERROR: updating inventory.min_Y\n");
       return FALSE;
     }
-    value = quantizer.get_z(inventory.raw_max_z);
+    value = quantizer.get_z(inventory.max_Z);
     if (!stream->put64bitsLE((U8*)&value))
     {
-      fprintf(stderr,"ERROR: updating inventory.max_z\n");
+      fprintf(stderr,"ERROR: updating inventory.max_Z\n");
       return FALSE;
     }
-    value = quantizer.get_z(inventory.raw_min_z);
+    value = quantizer.get_z(inventory.min_Z);
     if (!stream->put64bitsLE((U8*)&value))
     {
-      fprintf(stderr,"ERROR: updating inventory.min_z\n");
+      fprintf(stderr,"ERROR: updating inventory.min_Z\n");
       return FALSE;
     }
   }
@@ -1089,7 +1098,7 @@ BOOL LASwriterLAS::update_header(const LASheader* header, BOOL use_inventory, BO
       fprintf(stderr,"ERROR: header pointer is zero\n");
       return FALSE;
     }
-    if (header->number_extra_attributes)
+    if (header->number_attributes)
     {
       I64 start = header_start_position + header->header_size;
       for (i = 0; i < (I32)header->number_of_variable_length_records; i++)
@@ -1150,9 +1159,9 @@ I64 LASwriterLAS::close(BOOL update_header)
       if (!stream->isSeekable())
       {
 #ifdef _WIN32
-        fprintf(stderr, "ERROR: stream not seekable. cannot update header from %I64d to %I64d points.\n", npoints, p_count);
+        fprintf(stderr, "WARNING: stream not seekable. cannot update header from %I64d to %I64d points.\n", npoints, p_count);
 #else
-        fprintf(stderr, "ERROR: stream not seekable. cannot update header from %lld to %lld points.\n", npoints, p_count);
+        fprintf(stderr, "WARNING: stream not seekable. cannot update header from %lld to %lld points.\n", npoints, p_count);
 #endif
       }
       else

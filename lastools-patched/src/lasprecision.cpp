@@ -37,7 +37,7 @@
 
     This is free software; you can redistribute and/or modify it under the
     terms of the GNU Lesser General Licence as published by the Free Software
-    Foundation except for (R). See the LICENSE.txt file for more information.
+    Foundation. See the LICENSE.txt file for more information.
 
     This software is distributed WITHOUT ANY WARRANTY and without even the
     implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
@@ -279,6 +279,7 @@ int main(int argc, char *argv[])
       argv[i][0] = '\0';
 #else
       fprintf(stderr, "WARNING: not compiled with multi-core batching. ignoring '-cores' ...\n");
+      i++;
 #endif
     }
     else if ((strcmp(argv[i],"-diff_diff") == 0) || (strcmp(argv[i],"-diff_diff_only") == 0))
@@ -450,17 +451,17 @@ int main(int argc, char *argv[])
       {
         if (report_x)
         {
-          array_x[array_count] = lasreader->point.x;
+          array_x[array_count] = lasreader->point.get_X();
         }
 
         if (report_y)
         {
-          array_y[array_count] = lasreader->point.y;
+          array_y[array_count] = lasreader->point.get_Y();
         }
 
         if (report_z)
         {
-          array_z[array_count] = lasreader->point.z;
+          array_z[array_count] = lasreader->point.get_Z();
         }
 
         if (report_gps && lasreader->point.have_gps_time)
@@ -805,7 +806,7 @@ int main(int argc, char *argv[])
 
       // prepare the header for the surviving points
 
-      strncpy(lasreader->header.system_identifier, "LAStools (c) by Martin Isenburg", 32);
+      strncpy(lasreader->header.system_identifier, "LAStools (c) by rapidlasso GmbH", 32);
       lasreader->header.system_identifier[31] = '\0';
       char temp[64];
       sprintf(temp, "lasprecision (%d)", LAS_TOOLS_VERSION);

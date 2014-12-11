@@ -19,17 +19,19 @@
 
     This is free software; you can redistribute and/or modify it under the
     terms of the GNU Lesser General Licence as published by the Free Software
-    Foundation except for (R). See the LICENSE.txt file for more information.
+    Foundation. See the LICENSE.txt file for more information.
 
     This software is distributed WITHOUT ANY WARRANTY and without even the
     implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
   
   CHANGE HISTORY:
   
-    5 August 2011 -- possible to add/change projection info in command line
+    20 August 2014 -- new option '-keep_lastiling' to preserve the LAStiling VLR
+    20 August 2014 -- copy VLRs from empty (zero points) LAS/LAZ files to others
+     5 August 2011 -- possible to add/change projection info in command line
     13 May 2011 -- moved indexing, filtering, transforming into LASreader
     21 January 2011 -- added LASreadOpener and reading of multiple LAS files 
-     7 January 2011 -- added the LASfilter to clip or eliminate points 
+     7 January 2011 -- added the LASfilter to drop or keep points 
     12 March 2009 -- updated to ask for input if started without arguments 
     07 November 2007 -- created after email from luis.viveros@digimapas.cl
   
@@ -88,6 +90,7 @@ int main(int argc, char *argv[])
   bool gui = false;
 #endif
   bool verbose = false;
+  bool keep_lastiling = false;
   U32 chopchop = 0;
   bool projection_was_set = false;
   double start_time = 0;
@@ -163,6 +166,10 @@ int main(int argc, char *argv[])
       i++;
       chopchop = atoi(argv[i]);
     }
+    else if (strcmp(argv[i],"-keep_lastiling") == 0)
+    {
+      keep_lastiling = true;
+    }
     else if ((argv[i][0] != '-') && (lasreadopener.get_file_name_number() == 0))
     {
       lasreadopener.add_file_name(argv[i]);
@@ -182,7 +189,20 @@ int main(int argc, char *argv[])
   }
 #endif
 
+  // read all the input files merged
+
   lasreadopener.set_merged(TRUE);
+
+  // maybe we want to keep the lastiling 
+
+  if (keep_lastiling)
+  {
+    lasreadopener.set_keep_lastiling(TRUE);
+  }
+
+  // we need to precompute the bounding box
+
+  lasreadopener.set_populate_header(TRUE);
 
   // check input and output
 
@@ -235,7 +255,7 @@ int main(int argc, char *argv[])
 
   // prepare the header for the surviving points
 
-  strncpy(lasreader->header.system_identifier, "LAStools (c) by Martin Isenburg", 32);
+  strncpy(lasreader->header.system_identifier, "LAStools (c) by rapidlasso GmbH", 32);
   lasreader->header.system_identifier[31] = '\0';
   char temp[64];
   sprintf(temp, "lasmerge (version %d)", LAS_TOOLS_VERSION);

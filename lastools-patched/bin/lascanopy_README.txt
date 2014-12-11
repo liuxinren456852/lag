@@ -7,21 +7,68 @@
   important parameter is '-step n' that specifies the n x n area
   of LiDAR points that are gridded on one raster (or pixel). The
   default of step is 20. The output can be either in BIL, ASC, IMG,
-  TIF, XYZ, FLT, or DTM format.
+  TIF, XYZ, FLT, or DTM format. New is raster output in CSV format
+  where you can request the '-centroids' to be added. In order to
+  shift the raster grid that the points are binned into away from
+  the default alignment of (0/0) to (5/15) use '-grid_ll 5 15'.
+
+  If your input files are plots you can use the '-files_are_plots'
+  option. Here you can ask for the file '-names' to be added to
+  the output CSV file. You can also query a list of circular plots
+  from a text file with each line listing: "center_x center_y radius"
+  with a command like:
+
+  lascanopy -i forest\*.laz -loc circles.txt -cov -p 50 95 -o plots.csv
+
+  And if you want to override the radius then you can do this by
+  adding a fix radius with '-loc_radius 2' or '-loc_radius 7.5'
+  to the command above.
+
+  You can also query a list of rectangular plots from a text
+  file with each line listing: "min_x min_y max_x max_y" with a
+  command like:
+
+  lascanopy -i forest\*.laz -lor rectangles.txt -dns -gap -b 50 75 -o stands.csv
+
+  Or load more general polygonal plots from a shapefile with
+
+  lascanopy -i forest\*.laz -lop polygons.shp -int_p 25 50 75 -centroids -o results.csv
 
   The tool can concurrently compute a number height percentiles
-  rasters ('-p 5 10 25 50 75 90'), the '-min', the '-max', the
-  '-avg', and the '-std' of all heights above the cutoff that is
-  usually at breast height. The default is 1.37 and it can be
-  changed with the option '-height_cutoff 0.75'.
+  ('-p 5 10 25 50 75 90'), the '-min', the '-max', the average
+  '-avg', and the standard deviation '-std' of all heights above
+  the cutoff that by default is breast height of 1.37. It can be
+  changed with the option '-height_cutoff 2.0'. Also the skewness
+  with '-ske', the kurtosis with '-kur', and a quadratic average
+  '-qav' can be computed.
+
+  There is also the concept of height "bincentiles" where '-b 90'
+  would deliver the percentage or fraction of points between the
+  height cutoff (aka breast height) and the maximum height. Hence
+  the results may not be what you want for '-height_cutoff -2'.
+  To utilize all of the points for the bincentile calculation use
+  '-height_cutoff 0' and the transform '-clamp_z_below 0.0'. There
+  is also option '-b_upper 97' that specifies a certain height
+  percentile to be used instead of the maximum height as "upper"
+  limit for the bins. This metric is sometimes also referred to
+  as "deciles". Request multiple bincentiles with '-b 50 75 90'.
 
   The tool can also produce the canopy cover using option '-cov'.
   The canopy cover is computed as the number of first returns
-  above the height cutoff divided by the number of all first
+  above the cover cutoff divided by the number of all first
   returns and output as a percentage. Similarly, with the option
   '-dns' the canopy density can be produced. The canopy density
-  is computed as the number of points above the height cutoff
-  divided by the number of all returns. 
+  is computed as the number of all points above the cover cutoff
+  divided by the number of all returns. By default this cover 
+  cutoff is identical to the height cutoff. However, using the
+  option '-cover_cutoff 5.0' you can set it to a lower or a
+  higher value. As the output default percentages between 0.0%
+  and 100.0% are produced. Use option '-fractions' to produce
+  fractions between 0.000 and 1.000 instead. 
+
+  It is possible to compute the inverse of the canopy cover and
+  canopy density with the '-gap' option which will give you 100%
+  (or for fractions 1.0) minus canopy cover or canopy density.
 
   In addition, the tool can also concurrently produce several
   height count rasters. The option '-c 0.5 2 4 10 50', for example,
@@ -30,6 +77,13 @@
   [10, 50). In the same manner the option '-d 0.5 2 4 10 50' will
   produce a relative height density raster in which the counts are
   divided by the total number of points and scaled to a percentage.
+
+  Metrics alo exist for intensities and '-int_min' and '-int_max'
+  do the obvious, just like '-int_avg', '-int_qav', '-int_std',
+  '-int_ske' or '-int_kur'. Similarly you can produce intensity
+  percentiles with '-int_p 25 50 75' or intensity counts as well
+  as densities using the corresponding '-int_c 0 128 256 1024' or
+  '-int_d 0 128 256 1024'.
 
   By default the generated raster spans the extend of the header
   bounding box. You can use the bounding box of the tile with
@@ -40,23 +94,24 @@
   extend can also be defined by setting '-ll min_x min_y' plus
   '-ncols 512' and '-nrows 512'.
 
-  It is very important (at the moment) that the input files are
-  height normalized, meaning that the z coordinate of each point
+  For the height_cutoff to make sense it is important that the input
+  is height normalized, meaning that the z coordinate of each point
   corresponds to the height above ground and not the elevation of
   the point. With 'lasheight -i in.laz -replace_z -o out.laz' you
-  can height-normalize a ground classified LiDAR file.
+  can height-normalize a ground-classified LiDAR file.
 
   Let me know which other metrics you would like to see ...
 
-  Please license from martin.isenburg@gmail.com to use lascanopy
-  commercially.
+  Please license from martin.isenburg@rapidlasso.com before you
+  use lascanopy commercially.
 
   For updates check the website or join the LAStools mailing list.
 
-  http://rapidlasso.com/
+  http://rapidlasso.com/LAStools
+  http://lastools.org/
   http://groups.google.com/group/lastools/
-  http://twitter.com/lastools/
-  http://facebook.com/lastools/
+  http://twitter.com/LAStools
+  http://facebook.com/LAStools
   http://linkedin.com/groups?gid=4408378
 
   Martin @rapidlasso
@@ -82,9 +137,8 @@ and stores the resulting rasters in BIL format using the endings
 
 other commandline arguments are
 
--mem                   : amount of main memory to use in MB (500 - 2000) [default: 500]
--temp_files            : base file name for temp files (example: E:\tmp)
--step 2                : raster with stepsize 2 [default: 1]
+
+-step 10               : raster with stepsize 10 [default: 20]
 -nrows 512             : raster at most 512 rows
 -ncols 512             : raster at most 512 columns
 -ll 300000 600000      : start rastering at these lower left x and y coordinates
@@ -119,18 +173,24 @@ for more info:
 
 C:\lastools\bin>lascanopy -h
 Filter points based on their coordinates.
-  -clip_tile 631000 4834000 1000 (ll_x ll_y size)
-  -clip_circle 630250.00 4834750.00 100 (x y radius)
-  -clip_box 620000 4830000 100 621000 4831000 200 (min_x min_y min_z max_x max_y max_z)
-  -clip 630000 4834000 631000 4836000 (min_x min_y max_x max_y)
-  -clip_x_below 630000.50 (min_x)
-  -clip_y_below 4834500.25 (min_y)
-  -clip_x_above 630500.50 (max_x)
-  -clip_y_above 4836000.75 (max_y)
-  -clip_z 11.125 130.725 (min_z max_z)
-  -clip_z_below 11.125 (min_z)
-  -clip_z_above 130.725 (max_z)
-  -clip_z_between 11.125 130.725 (min_z max_z)
+  -keep_tile 631000 4834000 1000 (ll_x ll_y size)
+  -keep_circle 630250.00 4834750.00 100 (x y radius)
+  -keep_xy 630000 4834000 631000 4836000 (min_x min_y max_x max_y)
+  -drop_xy 630000 4834000 631000 4836000 (min_x min_y max_x max_y)
+  -keep_x 631500.50 631501.00 (min_x max_x)
+  -drop_x 631500.50 631501.00 (min_x max_x)
+  -drop_x_below 630000.50 (min_x)
+  -drop_x_above 630500.50 (max_x)
+  -keep_y 4834500.25 4834550.25 (min_y max_y)
+  -drop_y 4834500.25 4834550.25 (min_y max_y)
+  -drop_y_below 4834500.25 (min_y)
+  -drop_y_above 4836000.75 (max_y)
+  -keep_z 11.125 130.725 (min_z max_z)
+  -drop_z 11.125 130.725 (min_z max_z)
+  -drop_z_below 11.125 (min_z)
+  -drop_z_above 130.725 (max_z)
+  -keep_xyz 620000 4830000 100 621000 4831000 200 (min_x min_y min_z max_x max_y max_z)
+  -drop_xyz 620000 4830000 100 621000 4831000 200 (min_x min_y min_z max_x max_y max_z)
 Filter points based on their return number.
   -first_only -keep_first -drop_first
   -last_only -keep_last -drop_last
@@ -183,8 +243,8 @@ Filter points based on their gps time.
   -drop_gps_time_above 130.725
   -drop_gps_time_between 22.0 48.0
 Filter points based on their wavepacket.
-  -keep_wavepacket 1 2
-  -drop_wavepacket 0
+  -keep_wavepacket 0
+  -drop_wavepacket 3
 Filter points with simple thinning.
   -keep_every_nth 2
   -keep_random_fraction 0.1
@@ -195,6 +255,7 @@ Transform coordinates.
   -rotate_xy 15.0 620000 4100000 (angle + origin)
   -translate_xyz 0.5 0.5 0
   -translate_then_scale_y -0.5 1.001
+  -switch_x_y -switch_x_z -switch_y_z
   -clamp_z_below 70.5
   -clamp_z 70.5 72.5
 Transform raw xyz integers.
@@ -205,6 +266,8 @@ Transform intensity.
   -scale_intensity 2.5
   -translate_intensity 50
   -translate_then_scale_intensity 0.5 3.1
+  -clamp_intensity 0 255
+  -clamp_intensity_above 255
 Transform scan_angle.
   -scale_scan_angle 1.944445
   -translate_scan_angle -5
@@ -218,12 +281,22 @@ Change the return number or return count of points.
 Modify the classification.
   -set_classification 2
   -change_classification_from_to 2 4
+  -classify_z_below_as -5.0 7
+  -classify_z_above_as 70.0 7
+  -classify_z_between_as 2.0 5.0 4
+  -classify_intensity_above_as 200 9
+  -classify_intensity_below_as 30 11
+Change the flags.
+  -set_withheld_flag 0
+  -set_synthetic_flag 1
+  -set_keypoint_flag 0
 Modify the user data.
   -set_user_data 0
   -change_user_data_from_to 23 26
 Modify the point source ID.
   -set_point_source 500
   -change_point_source_from_to 1023 1024
+  -quantize_Z_into_point_source 200
 Transform gps_time.
   -translate_gps_time 40.50
   -adjusted_to_week
@@ -254,6 +327,7 @@ Supported Raster Outputs
   -o canopy.flt
   -o dtm.dtm
   -o density.xyz
+  -o spreadsheet.csv
   -o intensity.img
   -o hillshade.png
   -o slope.tif
@@ -262,13 +336,19 @@ Supported Raster Outputs
   -odir C:\data\hillshade (specify output directory)
   -odix _small (specify file name appendix)
   -ocut 2 (cut the last two characters from name)
-LAStools (by martin@rapidlasso.com) version 130402 (unlicensed)
+LAStools (by martin@rapidlasso.com) version 140709 (unlicensed)
 usage:
-lascanopy -i *.las -max -avg
+lascanopy -i *.las -max -avg -qav -p 50 95
 lascanopy -i *.laz -p 1 5 10 25 50 75 90 95 99
 lascanopy -i *.laz -c 2.0 5.0 10.0 20.0 -cov -dns -otif
-lascanopy -i *.laz -merged -max -avg -p 20 40 60 80 -o merged.dtm
-lascanopy -i *.laz -d 2.0 10.0 20.0 40.0 -cov -height_offset 2.0
+lascanopy -i *.laz -merged -max -avg -int_p 5 50 95 -o merged.dtm
+lascanopy -i *.laz -d 2.0 10.0 20.0 40.0 -cov -height_cutoff 2.0
+lascanopy -i *.laz -int_p 25 50 75 -dns -gap -fractions -otif
+lascanopy -i *.las -files_are_plots -int_avg -int_std -cov -gap
+lascanopy -i *.laz -p 25 50 75 95 -loc list_of_circles.txt
+lascanopy -i *.laz -d 2.0 4.0 6.0 8.0 -fractions -lor list_of_rectangles.txt
+lascanopy -i *.laz -p 95 -int_p 95 -cov -fractions -lop list_of_polygons.shp
+lascanopy -i 2014_07.laz -ll 470000 5550000 -step 10 -ncols 500 -nrows 200 -cov -p 50 95
 lascanopy -h
 
 ---------------

@@ -55,7 +55,7 @@ LINK32=link.exe
 # ADD LINK32 ../laslib/lib/LASlib.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /nologo /subsystem:console /machine:I386
 # Begin Special Build Tool
 SOURCE="$(InputPath)"
-PostBuild_Cmds=copy Release\laszip.exe ..\bin\laszip.exe
+PostBuild_Cmds=copy Release\laszip.exe ..\bin\laszip-cli.exe
 # End Special Build Tool
 
 !ELSEIF  "$(CFG)" == "laszip - Win32 Debug"
@@ -80,7 +80,7 @@ BSC32=bscmake.exe
 # ADD BSC32 /nologo
 LINK32=link.exe
 # ADD BASE LINK32 kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /nologo /subsystem:console /debug /machine:I386 /pdbtype:sept
-# ADD LINK32 ../laslib/libD/LASlib.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /nologo /subsystem:console /debug /machine:I386 /pdbtype:sept
+# ADD LINK32 ../laslib/lib/LASlibD.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /nologo /subsystem:console /debug /machine:I386 /pdbtype:sept
 # Begin Special Build Tool
 SOURCE="$(InputPath)"
 PostBuild_Cmds=copy Debug\laszip.exe ..\bin\laszip.exe
@@ -109,7 +109,7 @@ BSC32=bscmake.exe
 # ADD BSC32 /nologo
 LINK32=link.exe
 # ADD BASE LINK32 ../laslib/libD/LASlib.lib ../src_full/glui_api/glui32.lib ../src_full/glut_api/glutstatic.lib ../src_full/glut_api/glut32.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /nologo /subsystem:console /debug /machine:I386 /pdbtype:sept
-# ADD LINK32 ../laslib/libD/LASlib.lib ../src_full/glui_api/glui32.lib ../src_full/glut_api/glutstatic.lib ../src_full/glut_api/glut32.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /nologo /subsystem:console /debug /machine:I386 /pdbtype:sept
+# ADD LINK32 ../laslib/lib/LASlibD.lib ../src_full/glui_api/glui32.lib ../src_full/glut_api/glutstatic.lib ../src_full/glut_api/glut32.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /nologo /subsystem:console /debug /machine:I386 /pdbtype:sept
 # Begin Special Build Tool
 SOURCE="$(InputPath)"
 PostBuild_Cmds=copy Debug\laszip.exe ..\bin\laszip.exe
@@ -319,13 +319,36 @@ SOURCE=..\src_full\laszip_multi_core.cpp
 !ENDIF 
 
 # End Source File
+# Begin Source File
+
+SOURCE=..\src_full\shpreader.cpp
+
+!IF  "$(CFG)" == "laszip - Win32 Release"
+
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "laszip - Win32 Debug"
+
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "laszip - Win32 Debug with GUI"
+
+!ELSEIF  "$(CFG)" == "laszip - Win32 Release with GUI"
+
+!ENDIF 
+
+# End Source File
 # End Group
 # Begin Group "Header Files"
 
 # PROP Default_Filter "h;hpp;hxx;hm;inl"
 # Begin Source File
 
-SOURCE=..\laslib\inc\bytestreamin.hpp
+SOURCE="C:\Program Files (x86)\Microsoft Visual Studio\VC98\Include\BASETSD.H"
+# End Source File
+# Begin Source File
+
+SOURCE=..\LASzip\src\bytestreamin.hpp
 # End Source File
 # Begin Source File
 
@@ -333,11 +356,51 @@ SOURCE=.\geoprojectionconverter.hpp
 # End Source File
 # Begin Source File
 
+SOURCE=..\laslib\inc\lasdefinitions.hpp
+# End Source File
+# Begin Source File
+
+SOURCE=..\laslib\inc\lasfilter.hpp
+# End Source File
+# Begin Source File
+
 SOURCE=..\laslib\inc\lasindex.hpp
 # End Source File
 # Begin Source File
 
+SOURCE=..\laslib\inc\lasinterval.hpp
+# End Source File
+# Begin Source File
+
+SOURCE=..\src_full\laslicense.hpp
+# End Source File
+# Begin Source File
+
+SOURCE=..\src_full\lasoccupancy.hpp
+# End Source File
+# Begin Source File
+
+SOURCE=..\laslib\inc\lasquadtree.hpp
+# End Source File
+# Begin Source File
+
+SOURCE=..\src_full\lasraster.hpp
+# End Source File
+# Begin Source File
+
 SOURCE=..\laslib\inc\lasreader.hpp
+# End Source File
+# Begin Source File
+
+SOURCE=..\laslib\inc\lasspatial.hpp
+# End Source File
+# Begin Source File
+
+SOURCE=..\laslib\inc\lastransform.hpp
+# End Source File
+# Begin Source File
+
+SOURCE=..\laslib\inc\lasutility.hpp
 # End Source File
 # Begin Source File
 
@@ -350,6 +413,18 @@ SOURCE=..\laslib\inc\laswaveform13writer.hpp
 # Begin Source File
 
 SOURCE=..\laslib\inc\laswriter.hpp
+# End Source File
+# Begin Source File
+
+SOURCE=..\LASzip\src\laszip.hpp
+# End Source File
+# Begin Source File
+
+SOURCE=..\src_full\linereader.hpp
+# End Source File
+# Begin Source File
+
+SOURCE=..\LASzip\src\mydefs.hpp
 # End Source File
 # Begin Source File
 

@@ -5,7 +5,7 @@
   
   CONTENTS:
   
-    This source code serves as an example how you can easily use laslib to
+    This source code serves as an example how you can easily use LASlib to
     write your own processing tools or how to import from and export to the
     LAS format or - its compressed, but identical twin - the LAZ format.
 
@@ -15,11 +15,11 @@
 
   COPYRIGHT:
 
-    (c) 2007-2012, martin isenburg, rapidlasso - tools to catch reality
+    (c) 2007-2014, martin isenburg, rapidlasso - fast tools to catch reality
 
     This is free software; you can redistribute and/or modify it under the
     terms of the GNU Lesser General Licence as published by the Free Software
-    Foundation except for (R). See the LICENSE.txt file for more information.
+    Foundation. See the LICENSE.txt file for more information.
 
     This software is distributed WITHOUT ANY WARRANTY and without even the
     implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
@@ -174,10 +174,10 @@ int main(int argc, char *argv[])
   while (lasreader->read_point())
   {
     // modify the point
-    lasreader->point.point_source_ID = 1020;
-    lasreader->point.user_data = 42;
-    if (lasreader->point.classification == 12) lasreader->point.classification = 1;
-    lasreader->point.z += 10;
+    lasreader->point.set_point_source_ID(1020);
+    lasreader->point.set_user_data(42);
+    if (lasreader->point.get_classification() == 12) lasreader->point.set_classification(1);
+    lasreader->point.set_Z(lasreader->point.get_Z() + 10);
     // write the modified point
     laswriter->write_point(&lasreader->point);
     // add it to the inventory

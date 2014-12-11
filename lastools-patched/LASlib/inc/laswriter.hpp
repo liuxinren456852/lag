@@ -18,7 +18,7 @@
 
     This is free software; you can redistribute and/or modify it under the
     terms of the GNU Lesser General Licence as published by the Free Software
-    Foundation except for (R). See the LICENSE.txt file for more information.
+    Foundation. See the LICENSE.txt file for more information.
 
     This software is distributed WITHOUT ANY WARRANTY and without even the
     implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
@@ -56,7 +56,7 @@ public:
   virtual void update_inventory(const LASpoint* point) { inventory.add(point); };
   virtual BOOL chunk() = 0;
 
-  virtual BOOL update_header(const LASheader* header, BOOL use_inventory=TRUE, BOOL update_extra_bytes=FALSE) = 0;
+  virtual BOOL update_header(const LASheader* header, BOOL use_inventory=FALSE, BOOL update_extra_bytes=FALSE) = 0;
   virtual I64 close(BOOL update_npoints=TRUE) = 0;
 
   LASwriter() { npoints = 0; p_count = 0; };
@@ -68,6 +68,8 @@ public:
 class LASwriteOpener
 {
 public:
+  void set_io_obuffer_size(I32 io_obuffer_size);
+  inline I32 get_io_obuffer_size() const { return io_obuffer_size; };
   void set_directory(const CHAR* directory);
   void set_file_name(const CHAR* file_name);
   void set_appendix(const CHAR* appendix);
@@ -75,6 +77,7 @@ public:
   BOOL set_format(I32 format);
   BOOL set_format(const CHAR* format);
   void set_force(BOOL force);
+  void set_chunk_size(U32 chunk_size);
   void make_numbered_file_name(const CHAR* file_name, I32 digits);
   void make_file_name(const CHAR* file_name, I32 file_number=-1);
   const CHAR* get_directory() const;
@@ -100,6 +103,7 @@ private:
   void add_directory(const CHAR* directory=0);
   void add_appendix(const CHAR* appendix=0);
   void cut_characters(U32 cut=0);
+  I32 io_obuffer_size;
   CHAR* directory;
   CHAR* file_name;
   CHAR* appendix;
@@ -117,7 +121,6 @@ private:
   BOOL use_stdout;
   BOOL use_nil;
   BOOL buffered;
-  BOOL use_v1;
 };
 
 #endif

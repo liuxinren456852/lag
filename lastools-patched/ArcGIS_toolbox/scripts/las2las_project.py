@@ -1,16 +1,16 @@
 #
-# las2las_filter.py
+# las2las_project.py
 #
-# (c) 2012, Martin Isenburg
-# LASSO - rapid tools to catch reality
+# (c) 2013, martin isenburg - http://rapidlasso.com
+#     rapidlasso GmbH - fast tools to catch reality
 #
-# uses las2las.exe, the swiss-army knife of LiDAR processing, to filter
-# the points with various criteria (this does not change the points)
+# uses las2las.exe, the swiss-army knife of LiDAR processing, to project
+# the points between standard projections (without ellipsoid change)
 #
-# The LiDAR input can be in LAS/LAZ/BIN/TXT/SHP/... format.
-# The LiDAR output can be in LAS/LAZ/BIN/TXT format.
+# LiDAR input:   LAS/LAZ/BIN/TXT/SHP/BIL/ASC/DTM
+# LiDAR output:  LAS/LAZ/BIN/TXT
 #
-# for licensing details see http://rapidlasso.com/download/LICENSE.txt
+# for licensing see http://lastools.org/LICENSE.txt
 #
 
 import sys, os, arcgisscripting, subprocess
@@ -38,12 +38,22 @@ argc = len(sys.argv)
 #for i in range(0, argc):
 #    gp.AddMessage("[" + str(i) + "]" + sys.argv[i])
 
-### get the path to the LAStools binaries
-lastools_path = os.path.dirname(os.path.dirname(os.path.dirname(sys.argv[0])))+"\\bin"
+### get the path to LAStools
+lastools_path = os.path.dirname(os.path.dirname(os.path.dirname(sys.argv[0])))
+
+### make sure the path does not contain spaces
+if lastools_path.count(" ") > 0:
+    gp.AddMessage("Error. Path to .\\lastools installation contains spaces.")
+    gp.AddMessage("This does not work: " + lastools_path)
+    gp.AddMessage("This would work:    C:\\software\\lastools")
+    sys.exit(1)    
+
+### complete the path to where the LAStools executables are
+lastools_path = lastools_path + "\\bin"
 
 ### check if path exists
 if os.path.exists(lastools_path) == False:
-    gp.AddMessage("Cannot find .\lastools\bin at " + lastools_path)
+    gp.AddMessage("Cannot find .\\lastools\\bin at " + lastools_path)
     sys.exit(1)
 else:
     gp.AddMessage("Found " + lastools_path + " ...")
@@ -59,7 +69,7 @@ else:
     gp.AddMessage("Found " + las2las_path + " ...")
 
 ### create the command string for las2las.exe
-command = [las2las_path]
+command = ['"'+las2las_path+'"']
 
 ### maybe use '-verbose' option
 if sys.argv[argc-1] == "true":
@@ -67,7 +77,7 @@ if sys.argv[argc-1] == "true":
 
 ### add input LiDAR
 command.append("-i")
-command.append(sys.argv[1])
+command.append('"'+sys.argv[1]+'"')
 
 ### maybe current projection was specified
 if sys.argv[2] != "#":
@@ -148,12 +158,15 @@ if sys.argv[8] != "#":
         else:
             gp.AddMessage("ERROR: no target state plane 27 specified")
             sys.exit(1)
-        
-### maybe current units are feet
+    else:
+        gp.AddMessage("ERROR: no target projection specified")
+        sys.exit(1)
+
+### maybe target units are feet
 if sys.argv[12] == "true":
         command.append("-target_feet")
     
-### maybe current elevation units are feet
+### maybe target elevation units are feet
 if sys.argv[13] == "true":
         command.append("-target_elevation_feet")
             
@@ -182,24 +195,32 @@ if sys.argv[out] != "#":
 ### maybe an output file name was selected
 if sys.argv[out+1] != "#":
     command.append("-o")
-    command.append(sys.argv[out+1])
+    command.append('"'+sys.argv[out+1]+'"')
 
 ### maybe an output directory was selected
 if sys.argv[out+2] != "#":
     command.append("-odir")
-    command.append(sys.argv[out+2])
+    command.append('"'+sys.argv[out+2]+'"')
 
 ### maybe an output appendix was selected
 if sys.argv[out+3] != "#":
     command.append("-odix")
-    command.append(sys.argv[out+3])
+    command.append('"'+sys.argv[out+3]+'"')
+
+### maybe there are additional command-line options
+if sys.argv[out+4] != "#":
+    additional_options = sys.argv[out+4].split()
+    for option in additional_options:
+        command.append(option)
 
 ### report command string
 gp.AddMessage("LAStools command line:")
 command_length = len(command)
 command_string = str(command[0])
+command[0] = command[0].strip('"')
 for i in range(1, command_length):
     command_string = command_string + " " + str(command[i])
+    command[i] = command[i].strip('"')
 gp.AddMessage(command_string)
 
 ### run command

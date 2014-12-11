@@ -11,7 +11,7 @@
   to request '-split_scans' and '-include_invalid' to change the
   default behaviour.
 
-  Another useful option is '-v' or '-verbose' that informs about
+  Another useful option is '-v' or '-v' that informs about
   the contents and the progress of processing.
 
   Below are some typical example command lines for the data that

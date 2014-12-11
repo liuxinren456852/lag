@@ -1,14 +1,14 @@
 #
 # lasview.py
 #
-# (c) 2012, Martin Isenburg
-# LASSO - rapid tools to catch reality
+# (c) 2013, martin isenburg - http://rapidlasso.com
+#     rapidlasso GmbH - fast tools to catch reality
 #
-# uses lasview.exe to 
+# uses lasview.exe to visualize LiDAR files
 #
-# The LiDAR input can be in LAS/LAZ/BIN/TXT/SHP/ASC... format.
+# LiDAR input:   LAS/LAZ/BIN/TXT/SHP/BIL/ASC/DTM
 #
-# for licensing details see http://rapidlasso.com/download/LICENSE.txt
+# for licensing see http://lastools.org/LICENSE.txt
 #
 
 import sys, os, arcgisscripting, subprocess
@@ -36,12 +36,22 @@ argc = len(sys.argv)
 #for i in range(0, argc):
 #    gp.AddMessage("[" + str(i) + "]" + sys.argv[i])
 
-### get the path to the LAStools binaries
-lastools_path = os.path.dirname(os.path.dirname(os.path.dirname(sys.argv[0])))+"\\bin"
+### get the path to LAStools
+lastools_path = os.path.dirname(os.path.dirname(os.path.dirname(sys.argv[0])))
+
+### make sure the path does not contain spaces
+if lastools_path.count(" ") > 0:
+    gp.AddMessage("Error. Path to .\\lastools installation contains spaces.")
+    gp.AddMessage("This does not work: " + lastools_path)
+    gp.AddMessage("This would work:    C:\\software\\lastools")
+    sys.exit(1)    
+
+### complete the path to where the LAStools executables are
+lastools_path = lastools_path + "\\bin"
 
 ### check if path exists
 if os.path.exists(lastools_path) == False:
-    gp.AddMessage("Cannot find .\lastools\bin at " + lastools_path)
+    gp.AddMessage("Cannot find .\\lastools\\bin at " + lastools_path)
     sys.exit(1)
 else:
     gp.AddMessage("Found " + lastools_path + " ...")
@@ -57,7 +67,7 @@ else:
     gp.AddMessage("Found " + lasview_path + " ...")
 
 ### create the command string for lasview.exe
-command = [lasview_path]
+command = ['"'+lasview_path+'"']
 
 ### maybe use '-verbose' option
 if sys.argv[argc-1] == "true":
@@ -65,10 +75,10 @@ if sys.argv[argc-1] == "true":
 
 ### add input LiDAR
 command.append("-i")
-command.append(sys.argv[1])
+command.append('"'+sys.argv[1]+'"')
 
 ### maybe display different number of points
-if sys.argv[2] != "2000000":
+if sys.argv[2] != "5000000":
     command.append("-points")
     command.append(sys.argv[2])
 
@@ -97,10 +107,10 @@ elif sys.argv[3] == "ground and objects":
     command.append("-ground_objects")
 
 ### how to color
-if sys.argv[4] == "height ramp 1":
-    command.append("-color_by_height1")
-elif sys.argv[4] == "height ramp 2":
-    command.append("-color_by_height2")
+if sys.argv[4] == "elevation ramp 1":
+    command.append("-color_by_elevation1")
+elif sys.argv[4] == "elevation ramp 2":
+    command.append("-color_by_elevation2")
 elif sys.argv[4] == "classification":
     command.append("-color_by_classification")
 elif sys.argv[4] == "rgb":
@@ -115,19 +125,27 @@ elif sys.argv[4] == "number returns":
 ### maybe show control points
 if sys.argv[5] != "#":
     command.append("-cp")
-    command.append(sys.argv[5])
+    command.append('"'+sys.argv[5]+'"')
 
 ### maybe add the control point parse string
-if sys.argv[6] != "xyz":
+if sys.argv[6] != "#":
     command.append("-cp_parse")
     command.append(sys.argv[6])
+
+### maybe there are additional command-line options
+if sys.argv[7] != "#":
+    additional_options = sys.argv[7].split()
+    for option in additional_options:
+        command.append(option)
 
 ### report command string
 gp.AddMessage("LAStools command line:")
 command_length = len(command)
 command_string = str(command[0])
+command[0] = command[0].strip('"')
 for i in range(1, command_length):
     command_string = command_string + " " + str(command[i])
+    command[i] = command[i].strip('"')
 gp.AddMessage(command_string)
 
 ### run command

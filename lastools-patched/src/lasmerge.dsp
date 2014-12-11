@@ -80,7 +80,7 @@ BSC32=bscmake.exe
 # ADD BSC32 /nologo
 LINK32=link.exe
 # ADD BASE LINK32 kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /nologo /subsystem:console /debug /machine:I386 /pdbtype:sept
-# ADD LINK32 ../laslib/libD/LASlib.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /nologo /subsystem:console /debug /machine:I386 /pdbtype:sept
+# ADD LINK32 ../laslib/lib/LASlibD.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /nologo /subsystem:console /debug /machine:I386 /pdbtype:sept
 # Begin Special Build Tool
 SOURCE="$(InputPath)"
 PostBuild_Cmds=copy Debug\lasmerge.exe ..\bin\lasmerge.exe
@@ -138,7 +138,7 @@ BSC32=bscmake.exe
 # ADD BSC32 /nologo
 LINK32=link.exe
 # ADD BASE LINK32 ../laslib/libD/LASlib.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /nologo /subsystem:console /debug /machine:I386 /pdbtype:sept
-# ADD LINK32 ../laslib/libD/LASlib.lib ../src_full/glui_api/glui32.lib ../src_full/glut_api/glutstatic.lib ../src_full/glut_api/glut32.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /nologo /subsystem:console /debug /machine:I386 /pdbtype:sept
+# ADD LINK32 ../laslib/lib/LASlibD.lib ../src_full/glui_api/glui32.lib ../src_full/glut_api/glutstatic.lib ../src_full/glut_api/glut32.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /nologo /subsystem:console /debug /machine:I386 /pdbtype:sept
 # Begin Special Build Tool
 SOURCE="$(InputPath)"
 PostBuild_Cmds=copy Debug\lasmerge.exe ..\bin\lasmerge.exe
@@ -181,6 +181,17 @@ SOURCE=..\src_full\laslicense.cpp
 # Begin Source File
 
 SOURCE=..\src\lasmerge.cpp
+
+!IF  "$(CFG)" == "lasmerge - Win32 Release"
+
+!ELSEIF  "$(CFG)" == "lasmerge - Win32 Debug"
+
+!ELSEIF  "$(CFG)" == "lasmerge - Win32 Release with GUI"
+
+!ELSEIF  "$(CFG)" == "lasmerge - Win32 Debug with GUI"
+
+!ENDIF 
+
 # End Source File
 # Begin Source File
 
@@ -239,6 +250,23 @@ SOURCE=..\src_full\lastools_gui.cpp
 !ENDIF 
 
 # End Source File
+# Begin Source File
+
+SOURCE=..\src_full\shpreader.cpp
+
+!IF  "$(CFG)" == "lasmerge - Win32 Release"
+
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "lasmerge - Win32 Debug"
+
+!ELSEIF  "$(CFG)" == "lasmerge - Win32 Release with GUI"
+
+!ELSEIF  "$(CFG)" == "lasmerge - Win32 Debug with GUI"
+
+!ENDIF 
+
+# End Source File
 # End Group
 # Begin Group "Header Files"
 
@@ -281,11 +309,19 @@ SOURCE=..\laslib\inc\laswriter.hpp
 # End Source File
 # Begin Source File
 
-SOURCE=..\laslib\inc\laszip.hpp
+SOURCE=..\LASzip\src\laszip.hpp
 # End Source File
 # Begin Source File
 
-SOURCE=..\laslib\inc\mydefs.hpp
+SOURCE=..\src_full\linereader.hpp
+# End Source File
+# Begin Source File
+
+SOURCE=..\LASzip\src\mydefs.hpp
+# End Source File
+# Begin Source File
+
+SOURCE=..\src_full\shpreader.hpp
 # End Source File
 # End Group
 # Begin Group "Resource Files"

@@ -20,7 +20,7 @@
 
     This is free software; you can redistribute and/or modify it under the
     terms of the GNU Lesser General Licence as published by the Free Software
-    Foundation except for (R). See the LICENSE.txt file for more information.
+    Foundation. See the LICENSE.txt file for more information.
 
     This software is distributed WITHOUT ANY WARRANTY and without even the
     implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
@@ -55,6 +55,7 @@ public:
 
   // read from file or write to file
   BOOL read(const char* file_name);
+  BOOL append(const char* file_name) const;
   BOOL write(const char* file_name) const;
   BOOL read(ByteStreamIn* stream);
   BOOL write(ByteStreamOut* stream) const;

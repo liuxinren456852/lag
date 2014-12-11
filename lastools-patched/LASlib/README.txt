@@ -1,8 +1,8 @@
 LASlib (with LASzip) is a C++ programming API for reading / writing LIDAR
 data stored in standard LAS or in compressed LAZ format (1.0 - 1.3). Both
 libraries - LASlib with LASzip - are released together under the terms of
-the GNU Lesser General Public Licence also known as LGPL except for one
-little restriction (R). See LICENSE.txt for details.
+the GNU Lesser General Public Licence also known as LGPL. See LICENSE.txt
+for details.
 
 Internally LASlib includes my stand-alone LASzip compression library that
 provides lossless compression for LAS data. This allows you to read or
@@ -22,9 +22,9 @@ Linux users there are simple Makefiles.
 The best way is get LASlib is to download LAStools, which contains the
 full LASlib (with LASzip) distribution:
 
-wget http://www.lastools.org/download/lastools.zip
-unzip lastools.zip
-cd lastools/
+wget http://www.lastools.org/download/LAStools.zip
+unzip LAStools.zip
+cd LAStools/
 make
 
 --------------------
@@ -57,11 +57,11 @@ int main(int argc, char *argv[])
 
 --------------------
 
-Many LAStools are free (with LGPL license). But some of the more powerful
+Many LAStools are "free" open source (LGPL). But some of the more powerful
 LAStools (i.e. for contour extraction, boundary polygon computation, TIN
 generation, DEM creation, thinning, clipping, tiling, sorting, ...) need
 a license for commercial and government use. 
 
 --------------------
 
-(c) 2007-2012 martin.isenburg@rapidlasso.com
+(c) 2007-2014 martin.isenburg@rapidlasso.com

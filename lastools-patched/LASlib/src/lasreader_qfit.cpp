@@ -17,7 +17,7 @@
 
     This is free software; you can redistribute and/or modify it under the
     terms of the GNU Lesser General Licence as published by the Free Software
-    Foundation except for (R). See the LICENSE.txt file for more information.
+    Foundation. See the LICENSE.txt file for more information.
 
     This software is distributed WITHOUT ANY WARRANTY and without even the
     implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
@@ -188,7 +188,7 @@ BOOL LASreaderQFIT::open(ByteStreamIn* stream)
 
   // populate the header as much as possible
 
-  sprintf(header.system_identifier, "LAStools (c) by Martin Isenburg");
+  sprintf(header.system_identifier, "LAStools (c) by rapidlasso GmbH");
   sprintf(header.generating_software, "via LASreaderQFIT (%d)", LAS_TOOLS_VERSION);
 
   header.number_of_point_records = (U32)npoints;
@@ -209,7 +209,7 @@ BOOL LASreaderQFIT::open(ByteStreamIn* stream)
     scan_azimuth.set_scale(0.001);
     scan_azimuth.set_min(0);
     scan_azimuth.set_max(360000);
-    header.add_extra_attribute(scan_azimuth);
+    header.add_attribute(scan_azimuth);
   }
   catch(...) {
     fprintf(stderr,"ERROR: initializing attribute scan_azimuth\n");
@@ -222,7 +222,7 @@ BOOL LASreaderQFIT::open(ByteStreamIn* stream)
     pitch.set_scale(0.001);
     pitch.set_min(-90000);
     pitch.set_max(90000);
-    header.add_extra_attribute(pitch);
+    header.add_attribute(pitch);
   }
   catch(...) {
     fprintf(stderr,"ERROR: initializing attribute pitch\n");
@@ -235,7 +235,7 @@ BOOL LASreaderQFIT::open(ByteStreamIn* stream)
     roll.set_scale(0.001);
     roll.set_min(-90000);
     roll.set_max(90000);
-    header.add_extra_attribute(roll);
+    header.add_attribute(roll);
   }
   catch(...) {
     fprintf(stderr,"ERROR: initializing attribute roll\n");
@@ -246,7 +246,7 @@ BOOL LASreaderQFIT::open(ByteStreamIn* stream)
   {
     try { 
       LASattribute pulse_width(LAS_ATTRIBUTE_U8, "pulse width", "Pulse Width (digitizer samples)");
-      header.add_extra_attribute(pulse_width);
+      header.add_attribute(pulse_width);
     }
     catch(...) {
       fprintf(stderr,"ERROR: initializing attribute pulse width\n");
@@ -259,20 +259,20 @@ BOOL LASreaderQFIT::open(ByteStreamIn* stream)
   // set point type
 
   header.point_data_format = 1;
-  header.point_data_record_length = 28 + header.get_total_extra_attributes_size();
+  header.point_data_record_length = 28 + header.get_attributes_size();
 
   // initialize point
 
   point.init(&header, header.point_data_format, header.point_data_record_length, &header);
 
-  // initialize extra attribute offsets
+  // initialize starts for attributes stored as extra bytes
 
-  scan_azimuth_array_offset = point.attributer->get_extra_attribute_array_offset("scan azimuth");
-  pitch_array_offset = point.attributer->get_extra_attribute_array_offset("pitch");
-  roll_array_offset = point.attributer->get_extra_attribute_array_offset("roll");
+  scan_azimuth_start = point.attributer->get_attribute_start("scan azimuth");
+  pitch_start = point.attributer->get_attribute_start("pitch");
+  roll_start = point.attributer->get_attribute_start("roll");
   if (version == 48)
   {
-    pulse_width_array_offset = point.attributer->get_extra_attribute_array_offset("pulse width");
+    pulse_width_start = point.attributer->get_attribute_start("pulse width");
   }
 
   // set point count to zero
@@ -342,17 +342,17 @@ BOOL LASreaderQFIT::read_point_default()
     }
 
     point.gps_time = 0.001*buffer[0];
-    point.x = buffer[2];
-    if (point.x > 180000000) point.x -= 360000000; //  convert LARGE positive east longitude to negative
-    point.y = buffer[1];
-    point.z = buffer[3];
+    point.set_X(buffer[2]);
+    if (point.get_X() > 180000000) point.set_X(point.get_X() - 360000000); //  convert LARGE positive east longitude to negative
+    point.set_Y(buffer[1]);
+    point.set_Z(buffer[3]);
     point.intensity = buffer[5];
     point.scan_angle_rank = I8_CLAMP(I16_QUANTIZE((0.001*buffer[6])-180.0));
 
-    point.set_extra_attribute(scan_azimuth_array_offset, (I32)buffer[6]);
-    point.set_extra_attribute(pitch_array_offset, (I32)buffer[7]);
-    point.set_extra_attribute(roll_array_offset, (I32)buffer[8]);
-    point.set_extra_attribute(pulse_width_array_offset, (U8)buffer[10]);
+    point.set_attribute(scan_azimuth_start, (I32)buffer[6]);
+    point.set_attribute(pitch_start, (I32)buffer[7]);
+    point.set_attribute(roll_start, (I32)buffer[8]);
+    point.set_attribute(pulse_width_start, (U8)buffer[10]);
 
     if (!populated_header)
     {
@@ -433,10 +433,10 @@ LASreaderQFIT::LASreaderQFIT()
   endian_swap = FALSE;
   offset = 0;
   populated_header = FALSE;
-  scan_azimuth_array_offset = -1;
-  pitch_array_offset = -1;
-  roll_array_offset = -1;
-  pulse_width_array_offset = -1;
+  scan_azimuth_start = -1;
+  pitch_start = -1;
+  roll_start = -1;
+  pulse_width_start = -1;
 }
 
 LASreaderQFIT::~LASreaderQFIT()

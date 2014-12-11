@@ -17,7 +17,7 @@
 
     This is free software; you can redistribute and/or modify it under the
     terms of the GNU Lesser General Licence as published by the Free Software
-    Foundation except for (R). See the LICENSE.txt file for more information.
+    Foundation. See the LICENSE.txt file for more information.
 
     This software is distributed WITHOUT ANY WARRANTY and without even the
     implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
@@ -124,7 +124,7 @@ BOOL LASreaderSHP::open(const char* file_name)
 
   // populate the header as much as it makes sense
 
-  sprintf(header.system_identifier, "LAStools (c) by Martin Isenburg");
+  sprintf(header.system_identifier, "LAStools (c) by rapidlasso GmbH");
   sprintf(header.generating_software, "via LASreaderSHP (%d)", LAS_TOOLS_VERSION);
 
   // maybe set creation date
@@ -328,10 +328,10 @@ BOOL LASreaderSHP::read_point_default()
       {
         if (fread(&double_input, sizeof(double), 1, file) != 1) { npoints = p_count; return FALSE; }; // x of point (LITTLE)
         from_little_endian(&double_input);
-        points[3*i+0] = header.get_x(double_input);
+        points[3*i+0] = header.get_X(double_input);
         if (fread(&double_input, sizeof(double), 1, file) != 1) { npoints = p_count; return FALSE; }; // y of point (LITTLE)
         from_little_endian(&double_input);
-        points[3*i+1] = header.get_y(double_input);
+        points[3*i+1] = header.get_Y(double_input);
       }
       // read points z and write LAS points
       if (shape_type == 18) // Multipoint
@@ -343,7 +343,7 @@ BOOL LASreaderSHP::read_point_default()
       {
         if (fread(&double_input, sizeof(double), 1, file) != 1) { npoints = p_count; return FALSE; }; // z of point (LITTLE)
         from_little_endian(&double_input);
-        points[3*i+2] = header.get_z(double_input);
+        points[3*i+2] = header.get_Z(double_input);
       }
     }
     else
@@ -359,10 +359,10 @@ BOOL LASreaderSHP::read_point_default()
       {
         if (fread(&double_input, sizeof(double), 1, file) != 1) { npoints = p_count; return FALSE; }; // x of point (LITTLE)
         from_little_endian(&double_input);
-        points[2*i+0] = header.get_x(double_input);
+        points[2*i+0] = header.get_Z(double_input);
         if (fread(&double_input, sizeof(double), 1, file) != 1) { npoints = p_count; return FALSE; }; // y of point (LITTLE)
         from_little_endian(&double_input);
-        points[2*i+1] = header.get_y(double_input);
+        points[2*i+1] = header.get_Z(double_input);
       }
     }
     // read points m
@@ -382,15 +382,15 @@ BOOL LASreaderSHP::read_point_default()
   }
   if (shape_type == 11 || shape_type == 18)
   {
-    point.x = points[3*point_count+0];
-    point.y = points[3*point_count+1];
-    point.z = points[3*point_count+2];
+    point.set_X(points[3*point_count+0]);
+    point.set_Y(points[3*point_count+1]);
+    point.set_Z(points[3*point_count+2]);
   }
   else
   {
-    point.x = points[2*point_count+0];
-    point.y = points[2*point_count+1];
-    point.z = 0;
+    point.set_X(points[2*point_count+0]);
+    point.set_Y(points[2*point_count+1]);
+    point.set_Z(0);
   }
   p_count++;
   point_count++;
@@ -555,19 +555,19 @@ void LASreaderSHP::populate_bounding_box()
 {
   // compute quantized and then unquantized bounding box
 
-  F64 dequant_min_x = header.get_x(header.get_x(header.min_x));
-  F64 dequant_max_x = header.get_x(header.get_x(header.max_x));
-  F64 dequant_min_y = header.get_y(header.get_y(header.min_y));
-  F64 dequant_max_y = header.get_y(header.get_y(header.max_y));
-  F64 dequant_min_z = header.get_z(header.get_z(header.min_z));
-  F64 dequant_max_z = header.get_z(header.get_z(header.max_z));
+  F64 dequant_min_x = header.get_x(header.get_X(header.min_x));
+  F64 dequant_max_x = header.get_x(header.get_X(header.max_x));
+  F64 dequant_min_y = header.get_y(header.get_Y(header.min_y));
+  F64 dequant_max_y = header.get_y(header.get_Y(header.max_y));
+  F64 dequant_min_z = header.get_z(header.get_Z(header.min_z));
+  F64 dequant_max_z = header.get_z(header.get_Z(header.max_z));
 
   // make sure there is not sign flip
 
   if ((header.min_x > 0) != (dequant_min_x > 0))
   {
     fprintf(stderr, "WARNING: quantization sign flip for min_x from %g to %g.\n", header.min_x, dequant_min_x);
-    fprintf(stderr, "         set scale factor for x coarser than %g with '-scale'\n", header.x_scale_factor);
+    fprintf(stderr, "         set scale factor for x coarser than %g with '-rescale'\n", header.x_scale_factor);
   }
   else
   {
@@ -576,7 +576,7 @@ void LASreaderSHP::populate_bounding_box()
   if ((header.max_x > 0) != (dequant_max_x > 0))
   {
     fprintf(stderr, "WARNING: quantization sign flip for max_x from %g to %g.\n", header.max_x, dequant_max_x);
-    fprintf(stderr, "         set scale factor for x coarser than %g with '-scale'\n", header.x_scale_factor);
+    fprintf(stderr, "         set scale factor for x coarser than %g with '-rescale'\n", header.x_scale_factor);
   }
   else
   {
@@ -585,7 +585,7 @@ void LASreaderSHP::populate_bounding_box()
   if ((header.min_y > 0) != (dequant_min_y > 0))
   {
     fprintf(stderr, "WARNING: quantization sign flip for min_y from %g to %g.\n", header.min_y, dequant_min_y);
-    fprintf(stderr, "         set scale factor for y coarser than %g with '-scale'\n", header.y_scale_factor);
+    fprintf(stderr, "         set scale factor for y coarser than %g with '-rescale'\n", header.y_scale_factor);
   }
   else
   {
@@ -594,7 +594,7 @@ void LASreaderSHP::populate_bounding_box()
   if ((header.max_y > 0) != (dequant_max_y > 0))
   {
     fprintf(stderr, "WARNING: quantization sign flip for max_y from %g to %g.\n", header.max_y, dequant_max_y);
-    fprintf(stderr, "         set scale factor for y coarser than %g with '-scale'\n", header.y_scale_factor);
+    fprintf(stderr, "         set scale factor for y coarser than %g with '-rescale'\n", header.y_scale_factor);
   }
   else
   {
@@ -603,7 +603,7 @@ void LASreaderSHP::populate_bounding_box()
   if ((header.min_z > 0) != (dequant_min_z > 0))
   {
     fprintf(stderr, "WARNING: quantization sign flip for min_z from %g to %g.\n", header.min_z, dequant_min_z);
-    fprintf(stderr, "         set scale factor for z coarser than %g with '-scale'\n", header.z_scale_factor);
+    fprintf(stderr, "         set scale factor for z coarser than %g with '-rescale'\n", header.z_scale_factor);
   }
   else
   {
@@ -612,7 +612,7 @@ void LASreaderSHP::populate_bounding_box()
   if ((header.max_z > 0) != (dequant_max_z > 0))
   {
     fprintf(stderr, "WARNING: quantization sign flip for max_z from %g to %g.\n", header.max_z, dequant_max_z);
-    fprintf(stderr, "         set scale factor for z coarser than %g with '-scale'\n", header.z_scale_factor);
+    fprintf(stderr, "         set scale factor for z coarser than %g with '-rescale'\n", header.z_scale_factor);
   }
   else
   {

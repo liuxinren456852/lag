@@ -32,11 +32,11 @@
   
   COPYRIGHT:
   
-    (c) 2011-12, martin isenburg, rapidlasso - fast tools to catch reality
+    (c) 2011-14, martin isenburg, rapidlasso - fast tools to catch reality
 
     This is free software; you can redistribute and/or modify it under the
     terms of the GNU Lesser General Licence as published by the Free Software
-    Foundation except for (R). See the LICENSE.txt file for more information.
+    Foundation. See the LICENSE.txt file for more information.
 
     This software is distributed WITHOUT ANY WARRANTY and without even the
     implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
@@ -84,9 +84,9 @@ static void byebye(bool error=false, bool wait=false)
   exit(error);
 }
 
-static double taketime()
+static F64 taketime()
 {
-  return (double)(clock())/CLOCKS_PER_SEC;
+  return (F64)(clock())/CLOCKS_PER_SEC;
 }
 
 #ifdef COMPILE_WITH_GUI
@@ -107,11 +107,13 @@ int main(int argc, char *argv[])
   I32 cores = 1;
 #endif
   bool verbose = false;
-  U32 tile_size = 0;
+  F32 tile_size = 0.0f;
   U32 threshold = 1000;
   U32 minimum_points = 100000;
   I32 maximum_intervals = -20;
-  double start_time = 0;
+  BOOL append = FALSE;
+  F64 start_time = 0.0;
+  F64 total_start_time = 0.0;
 
   LASreadOpener lasreadopener;
 
@@ -178,9 +180,10 @@ int main(int argc, char *argv[])
       argv[i][0] = '\0';
 #else
       fprintf(stderr, "WARNING: not compiled with multi-core batching. ignoring '-cores' ...\n");
+      i++;
 #endif
     }
-    else if (strcmp(argv[i],"-tile") == 0 || strcmp(argv[i],"-size") == 0 || strcmp(argv[i],"-tile_size") == 0)
+    else if (strcmp(argv[i],"-tile_size") == 0)
     {
       if ((i+1) >= argc)
       {
@@ -188,7 +191,7 @@ int main(int argc, char *argv[])
         byebye(true);
       }
       i++;
-      tile_size = atoi(argv[i]);
+      tile_size = (F32)atof(argv[i]);
     }
     else if (strcmp(argv[i],"-maximum") == 0)
     {
@@ -220,10 +223,9 @@ int main(int argc, char *argv[])
       i++;
       threshold = atoi(argv[i]);
     }
-    else if ((argv[i][0] != '-') && (lasreadopener.get_file_name_number() == 0))
+    else if (strcmp(argv[i],"-append") == 0)
     {
-      lasreadopener.add_file_name(argv[i]);
-      argv[i][0] = '\0';
+      append = TRUE;
     }
     else
     {
@@ -288,7 +290,11 @@ int main(int argc, char *argv[])
 
   // possibly loop over multiple input files
 
-  
+  if (verbose && lasreadopener.get_file_name_number() > 1)
+  {
+    total_start_time = taketime();
+  }
+
   while (lasreadopener.active())
   {
     if (verbose) start_time = taketime();
@@ -303,23 +309,24 @@ int main(int argc, char *argv[])
     }
 
     // setup the quadtree
+
     LASquadtree* lasquadtree = new LASquadtree;
-    if (tile_size == 0)
+    if (tile_size == 0.0f)
     {
       F32 t;
       if (((lasreader->header.max_x - lasreader->header.min_x) < 1000) && ((lasreader->header.max_y - lasreader->header.min_y) < 1000))
       {
         t = 10.0f;
       }
-      else if (((lasreader->header.max_x - lasreader->header.min_x) < 10000) && ((lasreader->header.max_x - lasreader->header.min_x) < 10000))
+      else if (((lasreader->header.max_x - lasreader->header.min_x) < 10000) && ((lasreader->header.max_y - lasreader->header.min_y) < 10000))
       {
         t = 100.0f;
       }
-      else if (((lasreader->header.max_x - lasreader->header.min_x) < 100000) && ((lasreader->header.max_x - lasreader->header.min_x) < 100000))
+      else if (((lasreader->header.max_x - lasreader->header.min_x) < 100000) && ((lasreader->header.max_y - lasreader->header.min_y) < 100000))
       {
         t = 1000.0f;
       }
-      else if (((lasreader->header.max_x - lasreader->header.min_x) < 1000000) && ((lasreader->header.max_x - lasreader->header.min_x) < 1000000))
+      else if (((lasreader->header.max_x - lasreader->header.min_x) < 1000000) && ((lasreader->header.max_y - lasreader->header.min_y) < 1000000))
       {
         t = 10000.0f;
       }
@@ -336,19 +343,39 @@ int main(int argc, char *argv[])
     }
 
     // create index and add points
+
     LASindex lasindex;
     lasindex.prepare(lasquadtree, threshold);
     while (lasreader->read_point()) lasindex.add(&lasreader->point, (U32)(lasreader->p_count-1));
   
-    // adaptive coarsening
-    lasindex.complete(minimum_points, maximum_intervals);
-    // write to file
-    lasindex.write(lasreadopener.get_file_name());
-
+    // delete the reader
+    
     lasreader->close();
     delete lasreader;
+
+    // adaptive coarsening
+
+    lasindex.complete(minimum_points, maximum_intervals);
+
+    // write to file
+
+    if (append)
+    {
+      lasindex.append(lasreadopener.get_file_name());
+    }
+    else
+    {
+      lasindex.write(lasreadopener.get_file_name());
+    }
+
+    if (verbose) fprintf(stderr,"done with '%s'. took %g sec.\n", lasreadopener.get_file_name(), taketime()-start_time);
   }
   
+  if (verbose && lasreadopener.get_file_name_number() > 1)
+  {
+    fprintf(stderr,"done with %u files. total time %g sec.\n", lasreadopener.get_file_name_number(), taketime()-total_start_time);
+  }
+
   byebye(false, argc==1);
 
   return 0;

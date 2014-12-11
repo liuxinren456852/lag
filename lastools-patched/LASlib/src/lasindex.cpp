@@ -17,7 +17,7 @@
 
     This is free software; you can redistribute and/or modify it under the
     terms of the GNU Lesser General Licence as published by the Free Software
-    Foundation except for (R). See the LICENSE.txt file for more information.
+    Foundation. See the LICENSE.txt file for more information.
 
     This software is distributed WITHOUT ANY WARRANTY and without even the
     implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
@@ -299,6 +299,141 @@ BOOL LASindex::read(const char* file_name)
   }
   delete stream;
   fclose(file);
+  return TRUE;
+}
+
+BOOL LASindex::append(const char* file_name) const
+{
+  LASreadOpener lasreadopener;
+
+  if (file_name == 0) return FALSE;
+
+  // open reader
+
+  LASreader* lasreader = lasreadopener.open(file_name);
+  if (lasreader == 0) return FALSE;
+  if (lasreader->header.laszip == 0) return FALSE;
+
+  // close reader
+
+  lasreader->close();
+
+  FILE* file = fopen(file_name, "rb");
+  ByteStreamIn* bytestreamin = 0;
+  if (IS_LITTLE_ENDIAN())
+    bytestreamin = new ByteStreamInFileLE(file);
+  else
+    bytestreamin = new ByteStreamInFileBE(file);
+
+  // maybe write LASindex EVLR start position into LASzip VLR
+
+  I64 offset_laz_vlr = -1;
+
+  // where to write LASindex EVLR that will contain the LAX file
+
+  I64 number_of_special_evlrs = lasreader->header.laszip->number_of_special_evlrs;
+  I64 offset_to_special_evlrs = lasreader->header.laszip->offset_to_special_evlrs;
+
+  if ((number_of_special_evlrs == -1) && (offset_to_special_evlrs == -1))
+  {
+    bytestreamin->seekEnd();
+    number_of_special_evlrs = 1;
+    offset_to_special_evlrs = bytestreamin->tell();
+
+    // find LASzip VLR
+
+    I64 total = lasreader->header.header_size + 2;
+    U32 number_of_variable_length_records = lasreader->header.number_of_variable_length_records + 1 + (lasreader->header.vlr_lastiling != 0) + (lasreader->header.vlr_lasoriginal != 0);
+
+    for (U32 u = 0; u < number_of_variable_length_records; u++)
+    {
+      bytestreamin->seek(total);
+
+      CHAR user_id[16];
+      try { bytestreamin->getBytes((U8*)user_id, 16); } catch(...)
+      {
+        fprintf(stderr,"ERROR: reading header.vlrs[%d].user_id\n", u);
+        return FALSE;
+      }
+      if (strcmp(user_id, "laszip encoded") == 0)
+      {
+        offset_laz_vlr = bytestreamin->tell() - 18;
+        break;
+      }
+      U16 record_id;
+      try { bytestreamin->get16bitsLE((U8*)&record_id); } catch(...)
+      {
+        fprintf(stderr,"ERROR: reading header.vlrs[%d].record_id\n", u);
+        return FALSE;
+      }
+      U16 record_length_after_header;
+      try { bytestreamin->get16bitsLE((U8*)&record_length_after_header); } catch(...)
+      {
+        fprintf(stderr,"ERROR: reading header.vlrs[%d].record_length_after_header\n", u);
+        return FALSE;
+      }
+      total += (54 + record_length_after_header);
+    }
+
+    if (number_of_special_evlrs == -1) return FALSE;
+  }
+
+  delete bytestreamin;
+  fclose(file);
+
+  ByteStreamOut* bytestreamout;
+  file = fopen(file_name, "rb+");
+  if (IS_LITTLE_ENDIAN())
+    bytestreamout = new ByteStreamOutFileLE(file);
+  else
+    bytestreamout = new ByteStreamOutFileBE(file);
+  bytestreamout->seek(offset_to_special_evlrs);
+
+  LASevlr lax_evlr;
+  sprintf(lax_evlr.user_id, "LAStools");
+  lax_evlr.record_id = 30;
+  sprintf(lax_evlr.description, "LAX spatial indexing (LASindex)");
+
+  bytestreamout->put16bitsLE((U8*)&(lax_evlr.reserved));
+  bytestreamout->putBytes((U8*)lax_evlr.user_id, 16);
+  bytestreamout->put16bitsLE((U8*)&(lax_evlr.record_id));
+  bytestreamout->put64bitsLE((U8*)&(lax_evlr.record_length_after_header));
+  bytestreamout->putBytes((U8*)lax_evlr.description, 32);
+
+  if (!write(bytestreamout))
+  {
+    fprintf(stderr,"ERROR (LASindex): cannot append LAX to '%s'\n", file_name);
+    delete bytestreamout;
+    fclose(file);
+    delete lasreader;
+    return FALSE;
+  }
+
+  // update LASindex EVLR
+
+  lax_evlr.record_length_after_header = bytestreamout->tell() - offset_to_special_evlrs - 60;
+  bytestreamout->seek(offset_to_special_evlrs + 20);
+  bytestreamout->put64bitsLE((U8*)&(lax_evlr.record_length_after_header));
+
+  // maybe update LASzip VLR
+
+  if (number_of_special_evlrs != -1)
+  {
+    bytestreamout->seek(offset_laz_vlr + 54 + 16);
+    bytestreamout->put64bitsLE((U8*)&number_of_special_evlrs);
+    bytestreamout->put64bitsLE((U8*)&offset_to_special_evlrs);
+  }
+
+  // close writer
+
+  bytestreamout->seekEnd();
+  delete bytestreamout;
+  fclose(file);
+
+  // delete reader
+
+  delete lasreader;
+
   return TRUE;
 }
 

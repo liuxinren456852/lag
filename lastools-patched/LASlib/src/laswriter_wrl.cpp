@@ -17,7 +17,7 @@
 
     This is free software; you can redistribute and/or modify it under the
     terms of the GNU Lesser General Licence as published by the Free Software
-    Foundation except for (R). See the LICENSE.txt file for more information.
+    Foundation. See the LICENSE.txt file for more information.
 
     This software is distributed WITHOUT ANY WARRANTY and without even the
     implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
@@ -161,9 +161,9 @@ static void lidardouble2string(CHAR* string, double value, double precision)
 
 BOOL LASwriterWRL::write_point(const LASpoint* point)
 {
-  lidardouble2string(printstring, header->get_x(point->x), header->x_scale_factor); fprintf(file, "%s ", printstring);
-  lidardouble2string(printstring, header->get_y(point->y), header->y_scale_factor); fprintf(file, "%s ", printstring);
-  lidardouble2string(printstring, header->get_z(point->z), header->z_scale_factor); fprintf(file, "%s\012", printstring);
+  lidardouble2string(printstring, header->get_x(point->get_X()), header->x_scale_factor); fprintf(file, "%s ", printstring);
+  lidardouble2string(printstring, header->get_y(point->get_Y()), header->y_scale_factor); fprintf(file, "%s ", printstring);
+  lidardouble2string(printstring, header->get_z(point->get_Z()), header->z_scale_factor); fprintf(file, "%s\012", printstring);
   if (rgb)
   {
     if (p_count == rgb_alloc)

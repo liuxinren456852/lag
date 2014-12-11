@@ -17,7 +17,7 @@
 
     This is free software; you can redistribute and/or modify it under the
     terms of the GNU Lesser General Licence as published by the Free Software
-    Foundation except for (R). See the LICENSE.txt file for more information.
+    Foundation. See the LICENSE.txt file for more information.
 
     This software is distributed WITHOUT ANY WARRANTY and without even the
     implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
@@ -172,7 +172,7 @@ BOOL LASreaderBIN::open(ByteStreamIn* stream)
 
   // populate the header as much as possible
 
-  sprintf(header.system_identifier, "LAStools (c) by Martin Isenburg");
+  sprintf(header.system_identifier, "LAStools (c) by rapidlasso GmbH");
   sprintf(header.generating_software, "via LASreaderBIN (%d)", LAS_TOOLS_VERSION);
 
   if (tsheader.time)
@@ -277,9 +277,9 @@ BOOL LASreaderBIN::read_point_default()
         fprintf(stderr,"ERROR: reading terrasolid point after %u of %u\n", (U32)p_count, (U32)npoints);
         return FALSE;
       }
-      point.x = tspoint.x;
-      point.y = tspoint.y;
-      point.z = tspoint.z;
+      point.set_X(tspoint.x);
+      point.set_Y(tspoint.y);
+      point.set_Z(tspoint.z);
       point.intensity = tspoint.intensity;
       point.classification = tspoint.code;
       point.point_source_ID = tspoint.line;
@@ -293,9 +293,9 @@ BOOL LASreaderBIN::read_point_default()
         fprintf(stderr,"ERROR: reading terrasolid row after %u of %u\n", (U32)p_count, (U32)npoints);
         return FALSE;
       }
-      point.x = tsrow.x;
-      point.y = tsrow.y;
-      point.z = tsrow.z;
+      point.set_X(tsrow.x);
+      point.set_Y(tsrow.y);
+      point.set_Z(tsrow.z);
       point.intensity = tsrow.echo_intensity & 0x3FFF;
       point.classification = tsrow.code;
       point.point_source_ID = tsrow.line;
@@ -311,26 +311,26 @@ BOOL LASreaderBIN::read_point_default()
 
     if (echo == 0) // only echo
     {
-      point.number_of_returns_of_given_pulse = 1;
       point.return_number = 1;
+      point.number_of_returns = 1;
       header.number_of_points_by_return[0]++;
     }
     else if (echo == 1) // first (of many)
     {
-      point.number_of_returns_of_given_pulse = 2;
       point.return_number = 1;
+      point.number_of_returns = 2;
       header.number_of_points_by_return[0]++;
     }
     else if (echo == 3) // last (of many)
     {
-      point.number_of_returns_of_given_pulse = 2;
       point.return_number = 2;
+      point.number_of_returns = 2;
       header.number_of_points_by_return[1]++;
     }
     else // intermediate
     {
-      point.number_of_returns_of_given_pulse = 3;
       point.return_number = 2;
+      point.number_of_returns = 3;
       header.number_of_points_by_return[1]++;
     }
 

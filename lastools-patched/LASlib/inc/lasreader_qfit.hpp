@@ -19,7 +19,7 @@
 
     This is free software; you can redistribute and/or modify it under the
     terms of the GNU Lesser General Licence as published by the Free Software
-    Foundation except for (R). See the LICENSE.txt file for more information.
+    Foundation. See the LICENSE.txt file for more information.
 
     This software is distributed WITHOUT ANY WARRANTY and without even the
     implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
@@ -67,10 +67,10 @@ private:
   I32 offset;
   I32 buffer[14];
   BOOL populated_header;
-  I32 scan_azimuth_array_offset;
-  I32 pitch_array_offset;
-  I32 roll_array_offset;
-  I32 pulse_width_array_offset;
+  I32 scan_azimuth_start;
+  I32 pitch_start;
+  I32 roll_start;
+  I32 pulse_width_start;
 };
 
 class LASreaderQFITrescale : public virtual LASreaderQFIT

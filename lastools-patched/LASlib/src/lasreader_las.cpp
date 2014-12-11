@@ -17,7 +17,7 @@
 
     This is free software; you can redistribute and/or modify it under the
     terms of the GNU Lesser General Licence as published by the Free Software
-    Foundation except for (R). See the LICENSE.txt file for more information.
+    Foundation. See the LICENSE.txt file for more information.
 
     This software is distributed WITHOUT ANY WARRANTY and without even the
     implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
@@ -34,16 +34,18 @@
 #include "bytestreamin_file.hpp"
 #include "bytestreamin_istream.hpp"
 #include "lasreadpoint.hpp"
+#include "lasindex.hpp"
 
 #ifdef _WIN32
 #include <fcntl.h>
 #include <io.h>
+#include <math.h>
 #endif
 
 #include <stdlib.h>
 #include <string.h>
 
-BOOL LASreaderLAS::open(const char* file_name, U32 io_buffer_size)
+BOOL LASreaderLAS::open(const char* file_name, I32 io_buffer_size, BOOL peek_only)
 {
   if (file_name == 0)
   {
@@ -60,7 +62,7 @@ BOOL LASreaderLAS::open(const char* file_name, U32 io_buffer_size)
 
   if (setvbuf(file, NULL, _IOFBF, io_buffer_size) != 0)
   {
-    fprintf(stderr, "WARNING: setvbuf() failed with buffer size %u\n", io_buffer_size);
+    fprintf(stderr, "WARNING: setvbuf() failed with buffer size %d\n", io_buffer_size);
   }
 
   // create input
@@ -70,10 +72,10 @@ BOOL LASreaderLAS::open(const char* file_name, U32 io_buffer_size)
   else
     in = new ByteStreamInFileBE(file);
 
-  return open(in);
+  return open(in, peek_only);
 }
 
-BOOL LASreaderLAS::open(FILE* file)
+BOOL LASreaderLAS::open(FILE* file, BOOL peek_only)
 {
   if (file == 0)
   {
@@ -102,7 +104,7 @@ BOOL LASreaderLAS::open(FILE* file)
   return open(in);
 }
 
-BOOL LASreaderLAS::open(istream& stream)
+BOOL LASreaderLAS::open(istream& stream, BOOL peek_only)
 {
   // create input
   ByteStreamIn* in;
@@ -111,10 +113,10 @@ BOOL LASreaderLAS::open(istream& stream)
   else
     in = new ByteStreamInIstreamBE(stream);
 
-  return open(in);
+  return open(in, peek_only);
 }
 
-BOOL LASreaderLAS::open(ByteStreamIn* stream)
+BOOL LASreaderLAS::open(ByteStreamIn* stream, BOOL peek_only)
 {
   U32 i,j;
 
@@ -137,9 +139,9 @@ BOOL LASreaderLAS::open(ByteStreamIn* stream)
     fprintf(stderr,"ERROR: reading header.file_signature\n");
     return FALSE;
   }
-  try { stream->get16bitsLE((U8*)&(header.file_source_id)); } catch(...)
+  try { stream->get16bitsLE((U8*)&(header.file_source_ID)); } catch(...)
   {
-    fprintf(stderr,"ERROR: reading header.file_source_id\n");
+    fprintf(stderr,"ERROR: reading header.file_source_ID\n");
     return FALSE;
   }
   try { stream->get16bitsLE((U8*)&(header.global_encoding)); } catch(...)
@@ -391,6 +393,16 @@ BOOL LASreaderLAS::open(ByteStreamIn* stream)
     return FALSE;
   }
 
+  npoints = (header.number_of_point_records ? header.number_of_point_records : header.extended_number_of_point_records);
+  p_count = 0;
+
+  if (peek_only)
+  {
+    // at least repair point type in incomplete header (no VLRs, no LASzip, no LAStiling) 
+    header.point_data_format &= 127;
+    return TRUE;
+  }
+
   // read the variable length records into the header
 
   U32 vlrs_size = 0;
@@ -467,16 +479,16 @@ BOOL LASreaderLAS::open(ByteStreamIn* stream)
           header.laszip = new LASzip();
 
           // read this data following the header of the variable length record
-          //     U16  compressor         2 bytes 
-          //     U32  coder              2 bytes 
-          //     U8   version_major      1 byte 
-          //     U8   version_minor      1 byte
-          //     U16  version_revision   2 bytes
-          //     U32  options            4 bytes 
-          //     I32  chunk_size         4 bytes
-          //     I64  num_points         8 bytes
-          //     I64  num_bytes          8 bytes
-          //     U16  num_items          2 bytes
+          //     U16  compressor                2 bytes 
+          //     U32  coder                     2 bytes 
+          //     U8   version_major             1 byte 
+          //     U8   version_minor             1 byte
+          //     U16  version_revision          2 bytes
+          //     U32  options                   4 bytes 
+          //     I32  chunk_size                4 bytes
+          //     I64  number_of_special_evlrs   8 bytes
+          //     I64  offset_to_special_evlrs   8 bytes
+          //     U16  num_items                 2 bytes
           //        U16 type                2 bytes * num_items
           //        U16 size                2 bytes * num_items
           //        U16 version             2 bytes * num_items
@@ -517,14 +529,14 @@ BOOL LASreaderLAS::open(ByteStreamIn* stream)
             fprintf(stderr,"ERROR: reading chunk_size %d\n", header.laszip->chunk_size);
             return FALSE;
           }
-          try { stream->get64bitsLE((U8*)&(header.laszip->num_points)); } catch(...)
+          try { stream->get64bitsLE((U8*)&(header.laszip->number_of_special_evlrs)); } catch(...)
           {
-            fprintf(stderr,"ERROR: reading num_points %d\n", (I32)header.laszip->num_points);
+            fprintf(stderr,"ERROR: reading number_of_special_evlrs %d\n", (I32)header.laszip->number_of_special_evlrs);
             return FALSE;
           }
-          try { stream->get64bitsLE((U8*)&(header.laszip->num_bytes)); } catch(...)
+          try { stream->get64bitsLE((U8*)&(header.laszip->offset_to_special_evlrs)); } catch(...)
           {
-            fprintf(stderr,"ERROR: reading num_bytes %d\n", (I32)header.laszip->num_bytes);
+            fprintf(stderr,"ERROR: reading offset_to_special_evlrs %d\n", (I32)header.laszip->offset_to_special_evlrs);
             return FALSE;
           }
           try { stream->get16bitsLE((U8*)&(header.laszip->num_items)); } catch(...)
@@ -765,7 +777,7 @@ BOOL LASreaderLAS::open(ByteStreamIn* stream)
           }
           else if (header.vlrs[i].record_id == 4) // ExtraBytes
           {
-            header.init_extra_attributes(header.vlrs[i].record_length_after_header/sizeof(LASattribute), (LASattribute*)header.vlrs[i].data);
+            header.init_attributes(header.vlrs[i].record_length_after_header/sizeof(LASattribute), (LASattribute*)header.vlrs[i].data);
           }
           else if ((header.vlrs[i].record_id >= 100) && (header.vlrs[i].record_id < 355)) // WavePacketDescriptor
           {
@@ -780,7 +792,37 @@ BOOL LASreaderLAS::open(ByteStreamIn* stream)
             {
               fprintf(stderr,"WARNING: variable length records defines wave packet descr %d more than once\n", idx);
             }
+            if (header.vlrs[i].record_length_after_header != 26)
+            {
+              fprintf(stderr,"WARNING: variable length record payload for wave packet descr %d is %d instead of 26 bytes\n", idx, (I32)header.vlrs[i].record_length_after_header);
+            }
             header.vlr_wave_packet_descr[idx] = (LASvlr_wave_packet_descr*)header.vlrs[i].data;
+            if ((header.vlr_wave_packet_descr[idx]->getBitsPerSample() != 8) && (header.vlr_wave_packet_descr[idx]->getBitsPerSample() != 16))
+            {
+              fprintf(stderr,"WARNING: bits per sample for wave packet descr %d is %d instead of 8 or 16\n", idx, (I32)header.vlr_wave_packet_descr[idx]->getBitsPerSample());
+            }
+            if (header.vlr_wave_packet_descr[idx]->getNumberOfSamples() == 0)
+            {
+              fprintf(stderr,"WARNING: number of samples for wave packet descr %d is zero\n", idx);
+            }
+            if (header.vlr_wave_packet_descr[idx]->getNumberOfSamples() > 8096)
+            {
+              fprintf(stderr,"WARNING: number of samples of %u for wave packet descr %d is with unusually large\n", header.vlr_wave_packet_descr[idx]->getNumberOfSamples(), idx);
+            }
+            if (header.vlr_wave_packet_descr[idx]->getTemporalSpacing() == 0)
+            {
+              fprintf(stderr,"WARNING: temporal spacing for wave packet descr %d is zero\n", idx);
+            }
+/*
+            // fix for RiPROCESS export error
+            if (idx == 1)
+              header.vlr_wave_packet_descr[idx]->setNumberOfSamples(80);
+            else
+              header.vlr_wave_packet_descr[idx]->setNumberOfSamples(160);
+
+            // fix for Optech LMS export error
+            header.vlr_wave_packet_descr[idx]->setNumberOfSamples(header.vlr_wave_packet_descr[idx]->getNumberOfSamples()/2);
+*/
           }
         }
         else
@@ -820,7 +862,7 @@ BOOL LASreaderLAS::open(ByteStreamIn* stream)
     {
       if (!stream->isSeekable())
       {
-        fprintf(stderr,"WARNING: LAS %d.%d file has %d EVLRs but stream is seekable ...\n", header.version_major, header.version_minor, header.number_of_extended_variable_length_records);
+        fprintf(stderr,"WARNING: LAS %d.%d file has %d EVLRs but stream is not seekable ...\n", header.version_major, header.version_minor, header.number_of_extended_variable_length_records);
       }
       else
       {
@@ -883,16 +925,16 @@ BOOL LASreaderLAS::open(ByteStreamIn* stream)
               header.laszip = new LASzip();
 
               // read this data following the header of the variable length record
-              //     U16  compressor         2 bytes 
-              //     U32  coder              2 bytes 
-              //     U8   version_major      1 byte 
-              //     U8   version_minor      1 byte
-              //     U16  version_revision   2 bytes
-              //     U32  options            4 bytes 
-              //     I32  chunk_size         4 bytes
-              //     I64  num_points         8 bytes
-              //     I64  num_bytes          8 bytes
-              //     U16  num_items          2 bytes
+              //     U16  compressor                2 bytes 
+              //     U32  coder                     2 bytes 
+              //     U8   version_major             1 byte 
+              //     U8   version_minor             1 byte
+              //     U16  version_revision          2 bytes
+              //     U32  options                   4 bytes 
+              //     I32  chunk_size                4 bytes
+              //     I64  number_of_special_evlrs   8 bytes
+              //     I64  offset_to_special_evlrs   8 bytes
+              //     U16  num_items                 2 bytes
               //        U16 type                2 bytes * num_items
               //        U16 size                2 bytes * num_items
               //        U16 version             2 bytes * num_items
@@ -933,14 +975,14 @@ BOOL LASreaderLAS::open(ByteStreamIn* stream)
                 fprintf(stderr,"ERROR: reading chunk_size %d\n", header.laszip->chunk_size);
                 return FALSE;
               }
-              try { stream->get64bitsLE((U8*)&(header.laszip->num_points)); } catch(...)
+              try { stream->get64bitsLE((U8*)&(header.laszip->number_of_special_evlrs)); } catch(...)
               {
-                fprintf(stderr,"ERROR: reading num_points %d\n", (I32)header.laszip->num_points);
+                fprintf(stderr,"ERROR: reading number_of_special_evlrs %d\n", (I32)header.laszip->number_of_special_evlrs);
                 return FALSE;
               }
-              try { stream->get64bitsLE((U8*)&(header.laszip->num_bytes)); } catch(...)
+              try { stream->get64bitsLE((U8*)&(header.laszip->offset_to_special_evlrs)); } catch(...)
               {
-                fprintf(stderr,"ERROR: reading num_bytes %d\n", (I32)header.laszip->num_bytes);
+                fprintf(stderr,"ERROR: reading offset_to_special_evlrs %d\n", (I32)header.laszip->offset_to_special_evlrs);
                 return FALSE;
               }
               try { stream->get16bitsLE((U8*)&(header.laszip->num_items)); } catch(...)
@@ -1113,7 +1155,7 @@ BOOL LASreaderLAS::open(ByteStreamIn* stream)
             }
             else if (header.evlrs[i].record_id == 4) // ExtraBytes
             {
-              header.init_extra_attributes((U32)header.evlrs[i].record_length_after_header/sizeof(LASattribute), (LASattribute*)header.evlrs[i].data);
+              header.init_attributes((U32)header.evlrs[i].record_length_after_header/sizeof(LASattribute), (LASattribute*)header.evlrs[i].data);
             }
             else if ((header.evlrs[i].record_id >= 100) && (header.evlrs[i].record_id < 355)) // WavePacketDescriptor
             {
@@ -1161,7 +1203,6 @@ BOOL LASreaderLAS::open(ByteStreamIn* stream)
 
   if ((header.point_data_format & 128) || (header.point_data_format & 64)) 
   {
-//    if (0)
     if (!header.laszip)
     {
       fprintf(stderr,"ERROR: this file was compressed with an experimental version of laszip\n");
@@ -1179,18 +1220,62 @@ BOOL LASreaderLAS::open(ByteStreamIn* stream)
 
   if (header.laszip)
   {
-    if (!point.init(&header, header.laszip->num_items, header.laszip->items)) return FALSE;
+    if (!point.init(&header, header.laszip->num_items, header.laszip->items, &header)) return FALSE;
     if (!reader->setup(header.laszip->num_items, header.laszip->items, header.laszip)) return FALSE;
   }
   else
   {
-    if (!point.init(&header, header.point_data_format, header.point_data_record_length)) return FALSE;
+    if (!point.init(&header, header.point_data_format, header.point_data_record_length, &header)) return FALSE;
     if (!reader->setup(point.num_items, point.items)) return FALSE;
   }
-  if (!reader->init(stream)) return FALSE;
 
-  npoints = (header.number_of_point_records ? header.number_of_point_records : header.extended_number_of_point_records);
-  p_count = 0;
+  // maybe has internal EVLRs
+
+  if (header.laszip && (header.laszip->number_of_special_evlrs > 0) && (header.laszip->offset_to_special_evlrs >= header.offset_to_point_data) && stream->isSeekable())
+  {
+    I64 here = stream->tell();
+    try
+    {
+      I64 number = header.laszip->number_of_special_evlrs;
+      I64 offset = header.laszip->offset_to_special_evlrs;
+      I64 count;
+      for (count = 0; count < number; count++)
+      {
+        stream->seek(offset + 2);
+        CHAR user_id[16]; 
+        stream->getBytes((U8*)user_id, 16);
+        U16 record_id;
+        stream->get16bitsLE((U8*)&record_id);
+        if ((strcmp(user_id, "LAStools") == 0) && (record_id == 30))
+        {
+          stream->seek(offset + 60);
+          index = new LASindex();
+          if (index)
+          {
+            if (!index->read(stream))
+            {
+              delete index;
+              index = 0;
+            }
+          }
+          break;
+        }
+        else
+        {
+          I64 record_length_after_header;
+          stream->get64bitsLE((U8*)&record_length_after_header);
+          offset += (record_length_after_header + 60);
+        }
+      }
+    }
+    catch(...)
+    {
+      fprintf(stderr,"ERROR: trying to read %u internal EVLRs. ignoring ...\n", (U32)header.laszip->number_of_special_evlrs);
+    }
+    stream->seek(here);
+  }
+
+  if (!reader->init(stream)) return FALSE;
 
   return TRUE;
 }
@@ -1223,9 +1308,39 @@ BOOL LASreaderLAS::read_point_default()
   {
     if (reader->read(point.point) == FALSE)
     {
-      fprintf(stderr,"WARNING: end-of-file after %u of %u points\n", (U32)p_count, (U32)npoints);
+      if (reader->error())
+      {
+        fprintf(stderr,"ERROR: '%s' after %u of %u points\n", reader->error(), (U32)p_count, (U32)npoints);
+      }
+      else
+      {
+        fprintf(stderr,"WARNING: end-of-file after %u of %u points\n", (U32)p_count, (U32)npoints);
+      }
       return FALSE;
     }
+
+/*
+    // fix for OPTECH LMS export error
+    if (point.have_wavepacket)
+    {
+      // distance in meters light travels in one nanoseconds divided by two divided by 1000
+      F64 round_trip_distance_in_picoseconds = 0.299792458 / 2 / 1000; 
+      F64 x = -point.wavepacket.getXt();
+      F64 y = -point.wavepacket.getYt();
+      F64 z = -point.wavepacket.getZt();
+      F64 len = sqrt(x*x+y*y+z*z);
+      x = x / len * round_trip_distance_in_picoseconds;
+      y = y / len * round_trip_distance_in_picoseconds;
+      z = z / len * round_trip_distance_in_picoseconds;
+      point.wavepacket.setXt((F32)x);
+      point.wavepacket.setYt((F32)y);
+      point.wavepacket.setZt((F32)z);
+//      alternative to converge on optical origin 
+//      point.wavepacket.setXt(-point.wavepacket.getXt()/point.wavepacket.getLocation());
+//      point.wavepacket.setYt(-point.wavepacket.getYt()/point.wavepacket.getLocation());
+//      point.wavepacket.setZt(-point.wavepacket.getZt()/point.wavepacket.getLocation());
+    }
+*/
     p_count++;
     return TRUE;
   }
@@ -1284,25 +1399,25 @@ BOOL LASreaderLASrescale::read_point_default()
   if (!LASreaderLAS::read_point_default()) return FALSE;
   if (rescale_x)
   {
-    F64 coordinate = (orig_x_scale_factor*point.x)/header.x_scale_factor;
-    point.x = I32_QUANTIZE(coordinate);
+    F64 coordinate = (orig_x_scale_factor*point.get_X())/header.x_scale_factor;
+    point.set_X(I32_QUANTIZE(coordinate));
   }
   if (rescale_y)
   {
-    F64 coordinate = (orig_y_scale_factor*point.y)/header.y_scale_factor;
-    point.y = I32_QUANTIZE(coordinate);
+    F64 coordinate = (orig_y_scale_factor*point.get_Y())/header.y_scale_factor;
+    point.set_Y(I32_QUANTIZE(coordinate));
   }
   if (rescale_z)
   {
-    F64 coordinate = (orig_z_scale_factor*point.z)/header.z_scale_factor;
-    point.z = I32_QUANTIZE(coordinate);
+    F64 coordinate = (orig_z_scale_factor*point.get_Z())/header.z_scale_factor;
+    point.set_Z(I32_QUANTIZE(coordinate));
   }
   return TRUE;
 }
 
-BOOL LASreaderLASrescale::open(ByteStreamIn* stream)
+BOOL LASreaderLASrescale::open(ByteStreamIn* stream, BOOL peek_only)
 {
-  if (!LASreaderLAS::open(stream)) return FALSE;
+  if (!LASreaderLAS::open(stream, peek_only)) return FALSE;
   // do we need to change anything
   rescale_x = rescale_y = rescale_z = FALSE;
   orig_x_scale_factor = header.x_scale_factor;
@@ -1344,25 +1459,25 @@ BOOL LASreaderLASreoffset::read_point_default()
   if (!LASreaderLAS::read_point_default()) return FALSE;
   if (reoffset_x)
   {
-    F64 coordinate = ((header.x_scale_factor*point.x)+orig_x_offset-header.x_offset)/header.x_scale_factor;
-    point.x = I32_QUANTIZE(coordinate);
+    F64 coordinate = ((header.x_scale_factor*point.get_X())+orig_x_offset-header.x_offset)/header.x_scale_factor;
+    point.set_X(I32_QUANTIZE(coordinate));
   }
   if (reoffset_y)
   {
-    F64 coordinate = ((header.y_scale_factor*point.y)+orig_y_offset-header.y_offset)/header.y_scale_factor;
-    point.y = I32_QUANTIZE(coordinate);
+    F64 coordinate = ((header.y_scale_factor*point.get_Y())+orig_y_offset-header.y_offset)/header.y_scale_factor;
+    point.set_Y(I32_QUANTIZE(coordinate));
   }
   if (reoffset_z)
   {
-    F64 coordinate = ((header.z_scale_factor*point.z)+orig_z_offset-header.z_offset)/header.z_scale_factor;
-    point.z = I32_QUANTIZE(coordinate);
+    F64 coordinate = ((header.z_scale_factor*point.get_Z())+orig_z_offset-header.z_offset)/header.z_scale_factor;
+    point.set_Z(I32_QUANTIZE(coordinate));
   }
   return TRUE;
 }
 
-BOOL LASreaderLASreoffset::open(ByteStreamIn* stream)
+BOOL LASreaderLASreoffset::open(ByteStreamIn* stream, BOOL peek_only)
 {
-  if (!LASreaderLAS::open(stream)) return FALSE;
+  if (!LASreaderLAS::open(stream, peek_only)) return FALSE;
   // maybe auto reoffset
   if (auto_reoffset)
   {
@@ -1417,38 +1532,38 @@ BOOL LASreaderLASrescalereoffset::read_point_default()
   if (!LASreaderLAS::read_point_default()) return FALSE;
   if (reoffset_x)
   {
-    F64 coordinate = ((orig_x_scale_factor*point.x)+orig_x_offset-header.x_offset)/header.x_scale_factor;
-    point.x = I32_QUANTIZE(coordinate);
+    F64 coordinate = ((orig_x_scale_factor*point.get_X())+orig_x_offset-header.x_offset)/header.x_scale_factor;
+    point.set_X(I32_QUANTIZE(coordinate));
   }
   else if (rescale_x)
   {
-    F64 coordinate = (orig_x_scale_factor*point.x)/header.x_scale_factor;
-    point.x = I32_QUANTIZE(coordinate);
+    F64 coordinate = (orig_x_scale_factor*point.get_X())/header.x_scale_factor;
+    point.set_X(I32_QUANTIZE(coordinate));
   }
   if (reoffset_y)
   {
-    F64 coordinate = ((orig_y_scale_factor*point.y)+orig_y_offset-header.y_offset)/header.y_scale_factor;
-    point.y = I32_QUANTIZE(coordinate);
+    F64 coordinate = ((orig_y_scale_factor*point.get_Y())+orig_y_offset-header.y_offset)/header.y_scale_factor;
+    point.set_Y(I32_QUANTIZE(coordinate));
   }
   else if (rescale_y)
   {
-    F64 coordinate = (orig_y_scale_factor*point.y)/header.y_scale_factor;
-    point.y = I32_QUANTIZE(coordinate);
+    F64 coordinate = (orig_y_scale_factor*point.get_Y())/header.y_scale_factor;
+    point.set_Y(I32_QUANTIZE(coordinate));
   }
   if (reoffset_z)
   {
-    F64 coordinate = ((orig_z_scale_factor*point.z)+orig_z_offset-header.z_offset)/header.z_scale_factor;
-    point.z = I32_QUANTIZE(coordinate);
+    F64 coordinate = ((orig_z_scale_factor*point.get_Z())+orig_z_offset-header.z_offset)/header.z_scale_factor;
+    point.set_Z(I32_QUANTIZE(coordinate));
   }
   else if (rescale_z)
   {
-    F64 coordinate = (orig_z_scale_factor*point.z)/header.z_scale_factor;
-    point.z = I32_QUANTIZE(coordinate);
+    F64 coordinate = (orig_z_scale_factor*point.get_Z())/header.z_scale_factor;
+    point.set_Z(I32_QUANTIZE(coordinate));
   }
   return TRUE;
 }
 
-BOOL LASreaderLASrescalereoffset::open(ByteStreamIn* stream)
+BOOL LASreaderLASrescalereoffset::open(ByteStreamIn* stream, BOOL peek_only)
 {
   if (!LASreaderLASrescale::open(stream)) return FALSE;
   // maybe auto reoffset

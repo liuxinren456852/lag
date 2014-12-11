@@ -5,7 +5,7 @@
   
   CONTENTS:
   
-    This tool compresses and uncompresses LIDAR data in the LAS format to our
+    This tool compresses and uncompresses LiDAR data in the LAS format to our
     losslessly compressed LAZ format.
 
   PROGRAMMERS:
@@ -14,17 +14,18 @@
   
   COPYRIGHT:
   
-    (c) 2007-12, martin isenburg, rapidlasso - fast tools to catch reality
+    (c) 2007-2014, martin isenburg, rapidlasso - fast tools to catch reality
 
     This is free software; you can redistribute and/or modify it under the
     terms of the GNU Lesser General Licence as published by the Free Software
-    Foundation except for (R). See the LICENSE.txt file for more information.
+    Foundation. See the LICENSE.txt file for more information.
 
     This software is distributed WITHOUT ANY WARRANTY and without even the
     implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
   
   CHANGE HISTORY:
   
+    9 September 2014 -- prototyping forward-compatible coding of LAS 1.4 points  
     5 August 2011 -- possible to add/change projection info in command line
     23 June 2011 -- turned on LASzip version 2.0 compressor with chunking 
     17 May 2011 -- enabling batch processing with wildcards or multiple file names
@@ -49,6 +50,8 @@ using namespace std;
 #include "laswaveform13reader.hpp"
 #include "laswaveform13writer.hpp"
 #include "bytestreamin.hpp"
+#include "bytestreamout_array.hpp"
+#include "bytestreamin_array.hpp"
 #include "geoprojectionconverter.hpp"
 #include "lasindex.hpp"
 #include "lasquadtree.hpp"
@@ -110,25 +113,31 @@ extern int laszip_multi_core(int argc, char *argv[], GeoProjectionConverter* geo
 int main(int argc, char *argv[])
 {
   int i;
-  bool dry = false;
+  BOOL dry = FALSE;
 #ifdef COMPILE_WITH_GUI
-  bool gui = false;
+  BOOL gui = FALSE;
 #endif
 #ifdef COMPILE_WITH_MULTI_CORE
   I32 cores = 1;
 #endif
-  bool verbose = false;
+  BOOL verbose = FALSE;
   bool waveform = false;
   bool waveform_with_map = false;
   bool report_file_size = false;
+  bool check_integrity = false;
   I32 end_of_points = -1;
   bool projection_was_set = false;
-  bool lax = false;
-  U32 tile_size = 100;
+  bool format_not_specified = false;
+  BOOL lax = FALSE;
+  BOOL append = FALSE;
+  U32 compatible = 0;
+  U32 compatible_version = 0;
+  F32 tile_size = 100.0f;
   U32 threshold = 1000;
   U32 minimum_points = 100000;
   I32 maximum_intervals = -20;
   double start_time = 0.0;
+  double total_start_time = 0;
 
   LASreadOpener lasreadopener;
   GeoProjectionConverter geoprojectionconverter;
@@ -173,7 +182,7 @@ int main(int argc, char *argv[])
     }
     else if (strcmp(argv[i],"-v") == 0 || strcmp(argv[i],"-verbose") == 0)
     {
-      verbose = true;
+      verbose = TRUE;
     }
     else if (strcmp(argv[i],"-version") == 0)
     {
@@ -183,7 +192,7 @@ int main(int argc, char *argv[])
     else if (strcmp(argv[i],"-gui") == 0)
     {
 #ifdef COMPILE_WITH_GUI
-      gui = true;
+      gui = TRUE;
 #else
       fprintf(stderr, "WARNING: not compiled with GUI support. ignoring '-gui' ...\n");
 #endif
@@ -202,15 +211,34 @@ int main(int argc, char *argv[])
       argv[i][0] = '\0';
 #else
       fprintf(stderr, "WARNING: not compiled with multi-core batching. ignoring '-cores' ...\n");
+      i++;
 #endif
     }
     else if (strcmp(argv[i],"-dry") == 0)
     {
-      dry = true;
+      dry = TRUE;
     }
     else if (strcmp(argv[i],"-lax") == 0)
     {
-      lax = true;
+      lax = TRUE;
+    }
+    else if (strcmp(argv[i],"-append") == 0)
+    {
+      append = TRUE;
+    }
+    else if (strcmp(argv[i],"-compatible") == 0)
+    {
+      compatible = 1;
+      if (((i+1) < argc) && (argv[i+1][0] != '-') && (argv[i+1][0] != '\0'))
+      {
+        i++;
+        fprintf(stderr,"ERROR: compatible_version '%s'\n",argv[i]);
+        compatible_version = atoi(argv[i]);
+      }
+      else
+      {
+        compatible_version = 1;
+      }
     }
     else if (strcmp(argv[i],"-eop") == 0)
     {
@@ -235,7 +263,7 @@ int main(int argc, char *argv[])
         usage(true);
       }
       i++;
-      tile_size = atoi(argv[i]);
+      tile_size = (F32)atof(argv[i]);
     }
     else if (strcmp(argv[i],"-maximum") == 0)
     {
@@ -270,6 +298,10 @@ int main(int argc, char *argv[])
     else if (strcmp(argv[i],"-size") == 0)
     {
       report_file_size = true;
+    }
+    else if (strcmp(argv[i],"-check") == 0)
+    {
+      check_integrity = true;
     }
     else if (strcmp(argv[i],"-waveform") == 0 || strcmp(argv[i],"-waveforms") == 0)
     {
@@ -314,6 +346,18 @@ int main(int argc, char *argv[])
     usage(true, argc==1);
   }
 
+  // check output
+
+  if (laswriteopener.is_piped())
+  {
+    if (lax)
+    {
+      fprintf(stderr,"WARNING: disabling LAX generation for piped output\n");
+      lax = FALSE;
+      append = FALSE;
+    }
+  }
+
   // make sure we do not corrupt the input file
 
   if (lasreadopener.get_file_name() && laswriteopener.get_file_name() && (strcmp(lasreadopener.get_file_name(), laswriteopener.get_file_name()) == 0))
@@ -334,6 +378,12 @@ int main(int argc, char *argv[])
     projection_was_set = geoprojectionconverter.get_geo_keys_from_projection(number_of_keys, &geo_keys, num_geo_double_params, &geo_double_params);
   }
 
+  // check if the output format was *not* specified in the command line
+
+  format_not_specified = !laswriteopener.format_was_specified();
+
+  if (verbose) total_start_time = taketime();
+
   // loop over multiple input files
 
   while (lasreadopener.active())
@@ -350,6 +400,244 @@ int main(int argc, char *argv[])
       usage(true, argc==1);
     }
 
+    // check if compatible is on and how it makes sense
+
+    I32 compatible_start_scan_angle = -1;
+    I32 compatible_start_extended_returns = -1;
+    I32 compatible_start_classification = -1;
+    I32 compatible_start_flags_and_channel = -1;
+    I32 compatible_start_NIR_band = -1;
+
+    if (compatible) 
+    {
+      fprintf(stderr, "WARNING: the new 'compatibility mode' encoding for the new LAS 1.4\n");
+      fprintf(stderr, "         points is not complete. this is just an awesome prototype\n");
+      fprintf(stderr, "         as proof of concept as we gather community input ... (-;\n");
+
+      I32 index_scan_angle;
+      I32 index_extended_returns;
+      I32 index_classification;
+      I32 index_flags_and_channel;
+      I32 index_NIR_band;
+      compatible = 1; // none
+      if (lasreader->header.point_data_format > 5)
+      {
+        // only 6, 7, 8, 9, and 10 are supported
+        if (lasreader->header.point_data_format <= 10)
+        {
+          compatible = 2; // down
+          // if LAS 1.4 make it LAS 1.2
+          if (lasreader->header.version_minor == 4)
+          {
+            // check for EVLRs and turns them into VLRs
+            if (lasreader->header.number_of_extended_variable_length_records)
+            {
+              U32 i;
+              for (i = 0; i < lasreader->header.number_of_extended_variable_length_records; i++)
+              {
+                if (U16_FITS_IN_RANGE(lasreader->header.evlrs[i].record_length_after_header))
+                {
+                  lasreader->header.add_vlr(lasreader->header.evlrs[i].user_id, lasreader->header.evlrs[i].record_id, U16_CLAMP(lasreader->header.evlrs[i].record_length_after_header), lasreader->header.evlrs[i].data, FALSE, lasreader->header.evlrs[i].description);
+                  lasreader->header.evlrs[i].record_length_after_header = 0;
+                  lasreader->header.evlrs[i].data = 0;
+                }
+                else
+                {
+                  fprintf(stderr, "WARNING: compatibility does not support large EVLR %u of %u. deleting '%16s' with %u bytes\n", i, lasreader->header.number_of_extended_variable_length_records, lasreader->header.evlrs[i].user_id, (U32)lasreader->header.evlrs[i].record_length_after_header);
+                }
+              }
+              lasreader->header.clean_evlrs();
+            }
+            if (compatible_version == 1)
+            {
+              if (lasreader->header.point_data_format <= 8)
+              {
+                lasreader->header.version_minor = 2;
+                // subtract 148 byte difference between LAS 1.4 and LAS 1.2 header sizes
+                lasreader->header.header_size -= 148;
+                lasreader->header.offset_to_point_data -= 148;
+              }
+              else
+              {
+                lasreader->header.version_minor = 3;
+                // subtract 140 byte difference between LAS 1.4 and LAS 1.3 header sizes
+                lasreader->header.header_size -= 140;
+                lasreader->header.offset_to_point_data -= 140;
+              }
+              // create 148 bytes payload for compatibility VLR
+              ByteStreamOutArray* out;
+              if (IS_LITTLE_ENDIAN())
+                out = new ByteStreamOutArrayLE();
+              else
+                out = new ByteStreamOutArrayBE();
+              // write the 148 bytes of the extended LAS 1.4 header
+              out->put64bitsLE((U8*)&(lasreader->header.start_of_waveform_data_packet_record));
+              out->put64bitsLE((U8*)&(lasreader->header.start_of_first_extended_variable_length_record));
+              out->put32bitsLE((U8*)&(lasreader->header.number_of_extended_variable_length_records));
+              out->put64bitsLE((U8*)&(lasreader->header.extended_number_of_point_records));
+              for (i = 0; i < 15; i++)
+              {
+                out->put64bitsLE((U8*)&(lasreader->header.extended_number_of_points_by_return[i]));
+              }
+              // add the compatibility VLR
+              lasreader->header.add_vlr("LAS 1.4 mode", 22204, 148, out->takeData());
+              delete out;
+            }
+            else
+            {
+              fprintf(stderr, "ERROR: compatibility mode version %u not implemented\n", compatible_version);
+              byebye(true);
+            }
+          }
+          // old point type is two bytes shorter
+          lasreader->header.point_data_record_length -= 2;
+          if (compatible_version == 1)
+          {
+            // but we add 5 bytes of attributes
+            lasreader->header.point_data_record_length += 5;
+            // scan_angle (absolute or difference) is stored as a I16
+            LASattribute lasattribute_scan_angle(3, "LAS 1.4 scan angle", "additional attributes");
+            index_scan_angle = lasreader->header.add_attribute(lasattribute_scan_angle);
+            // extended returns stored as a U8
+            LASattribute lasattribute_extended_returns(0, "LAS 1.4 extended returns", "additional attributes");
+            index_extended_returns = lasreader->header.add_attribute(lasattribute_extended_returns);
+            // classification stored as a U8
+            LASattribute lasattribute_classification(0, "LAS 1.4 classification", "additional attributes");
+            index_classification = lasreader->header.add_attribute(lasattribute_classification);
+            // flags and channel stored as a U8
+            LASattribute lasattribute_flags_and_channel(0, "LAS 1.4 flags and channel", "additional attributes");
+            index_flags_and_channel = lasreader->header.add_attribute(lasattribute_flags_and_channel);
+          }
+          else
+          {
+            fprintf(stderr, "ERROR: compatibility mode version %u not implemented\n", compatible_version);
+            byebye(true);
+          }
+          // maybe store the NIR band as a U16
+          if (lasreader->header.point_data_format == 8 || lasreader->header.point_data_format == 10)
+          {
+            // the NIR band is stored as a U16
+            LASattribute lasattribute_NIR_band(2, "LAS 1.4 NIR band", "additional attributes");
+            index_NIR_band = lasreader->header.add_attribute(lasattribute_NIR_band);
+          }
+          // update VLR
+          lasreader->header.update_extra_bytes_vlr(TRUE);
+          // update point type
+          if (lasreader->header.point_data_format == 6)
+          {
+            lasreader->header.point_data_format = 1;
+          }
+          else if (lasreader->header.point_data_format <= 8)
+          {
+            lasreader->header.point_data_format = 3;
+          }
+          else // 9->4 and 10->5 
+          {
+            lasreader->header.point_data_format -= 5;
+          }
+        }
+        else
+        {
+          fprintf(stderr, "ERROR: compatibility for %d not supported yet\n", lasreader->header.point_data_format);        
+        }
+      }
+      else if ((lasreader->header.get_vlr("LAS 1.4 mode", 22204)) && ((index_scan_angle = lasreader->header.get_attribute_index("LAS 1.4 scan angle")) >= 0) && ((index_extended_returns = lasreader->header.get_attribute_index("LAS 1.4 extended returns")) >= 0) && ((index_classification = lasreader->header.get_attribute_index("LAS 1.4 classification")) >= 0) && ((index_flags_and_channel = lasreader->header.get_attribute_index("LAS 1.4 flags and channel")) >= 0))
+      {
+        // only 1, 3, 4 and 5 are supported
+        if ((lasreader->header.point_data_format == 1) || (lasreader->header.point_data_format == 3) || (lasreader->header.point_data_format == 4) || (lasreader->header.point_data_format == 5))
+        {
+          compatible = 3; // up
+          compatible_version = 1; // new
+          // make it LAS 1.4
+          if (lasreader->header.version_minor < 3)
+          {
+            // add the 148 byte difference between LAS 1.4 and LAS 1.2 header sizes
+            lasreader->header.header_size += 148;
+            lasreader->header.offset_to_point_data += 148;
+          }
+          else if (lasreader->header.version_minor == 3)
+          {
+            // add the 140 byte difference between LAS 1.4 and LAS 1.3 header sizes
+            lasreader->header.header_size += 140;
+            lasreader->header.offset_to_point_data += 140;
+          }
+          else
+          {
+            fprintf(stderr, "WARNING: LAS header version %d.%d when upgrading to LAS 1.4 in compatibility mode\n", lasreader->header.version_major, lasreader->header.version_minor);        
+          }
+          lasreader->header.version_minor = 4;
+          // get the compatibility VLR
+          const LASvlr* compatibility_vlr = lasreader->header.get_vlr("LAS 1.4 mode", 22204);
+          // read the 148 bytes payload from the compatibility VLR
+          ByteStreamInArray* in;
+          if (IS_LITTLE_ENDIAN())
+            in = new ByteStreamInArrayLE(compatibility_vlr->data, compatibility_vlr->record_length_after_header);
+          else
+            in = new ByteStreamInArrayBE(compatibility_vlr->data, compatibility_vlr->record_length_after_header);
+          // write the 148 bytes of the extended LAS 1.4 header
+          in->get64bitsLE((U8*)&(lasreader->header.start_of_waveform_data_packet_record));
+          in->get64bitsLE((U8*)&(lasreader->header.start_of_first_extended_variable_length_record));
+          in->get32bitsLE((U8*)&(lasreader->header.number_of_extended_variable_length_records));
+          in->get64bitsLE((U8*)&(lasreader->header.extended_number_of_point_records));
+          for (i = 0; i < 15; i++)
+          {
+            in->get64bitsLE((U8*)&(lasreader->header.extended_number_of_points_by_return[i]));
+          }
+          // delete the compatibility VLR
+          lasreader->header.remove_vlr("LAS 1.4 mode", 22204);
+          delete in;
+          // new point type is two bytes longer
+          lasreader->header.point_data_record_length += 2;
+          // but we subtract 5 bytes of attributes
+          lasreader->header.point_data_record_length -= 5;
+          // get start of attributes in point
+          compatible_start_scan_angle = lasreader->header.get_attribute_start(index_scan_angle);
+          compatible_start_extended_returns = lasreader->header.get_attribute_start(index_extended_returns);
+          compatible_start_classification = lasreader->header.get_attribute_start(index_classification);
+          compatible_start_flags_and_channel = lasreader->header.get_attribute_start(index_flags_and_channel);
+          // maybe we also have a NIR band?
+          if ((lasreader->header.point_data_format == 3) || (lasreader->header.point_data_format == 5))
+          {
+            index_NIR_band = lasreader->header.get_attribute_index("LAS 1.4 NIR band");
+            if (index_NIR_band != -1)
+            {
+              compatible_start_NIR_band = lasreader->header.get_attribute_start(index_NIR_band);
+              lasreader->header.remove_attribute(index_NIR_band);
+            }
+          }
+          // remove attributes from Extra Bytes VLR
+          lasreader->header.remove_attribute(index_flags_and_channel);
+          lasreader->header.remove_attribute(index_classification);
+          lasreader->header.remove_attribute(index_extended_returns);
+          lasreader->header.remove_attribute(index_scan_angle);
+          // update VLR
+          lasreader->header.update_extra_bytes_vlr(TRUE);
+          // update point type
+          if (lasreader->header.point_data_format == 1)
+          {
+            lasreader->header.point_data_format = 6;
+          }
+          else if (lasreader->header.point_data_format == 3)
+          {
+            if (compatible_start_NIR_band != -1)
+            {
+              lasreader->header.point_data_format = 8;
+            }
+            else
+            {
+              lasreader->header.point_data_format = 7;
+            }
+          }
+          else
+          {
+            lasreader->header.point_data_format += 5;
+          }
+          // remove old LASzip
+          lasreader->header.clean_laszip();
+        }
+      }
+    }
+
     // switch
 
     if (report_file_size)
@@ -361,12 +649,30 @@ int main(int argc, char *argv[])
       else
         fprintf(stderr,"uncompressed file size is %.2f MB or %.2f GB for '%s'\n", (F64)uncompressed_file_size/1024.0/1024.0, (F64)uncompressed_file_size/1024.0/1024.0/1024.0, lasreadopener.get_file_name());
     }
-    else if (dry)
+    else if (dry || check_integrity)
     {
       // maybe only a dry read pass
       start_time = taketime();
       while (lasreader->read_point());
-      fprintf(stderr,"needed %g secs to read '%s'\n", taketime()-start_time, lasreadopener.get_file_name());
+      if (check_integrity)
+      {
+        if (lasreader->p_count != lasreader->npoints)
+        {
+#ifdef _WIN32
+          fprintf(stderr,"FAILED integrity check for '%s' after %I64d of %I64d points\n", lasreadopener.get_file_name(), lasreader->p_count, lasreader->npoints);
+#else
+          fprintf(stderr,"FAILED integrity check for '%s' after %lld of %lld points\n", lasreadopener.get_file_name(), lasreader->p_count, lasreader->npoints);
+#endif
+        }
+        else
+        {
+          fprintf(stderr,"SUCCESS for '%s'\n", lasreadopener.get_file_name());
+        }
+      }
+      else
+      {
+        fprintf(stderr,"needed %g secs to read '%s'\n", taketime()-start_time, lasreadopener.get_file_name());
+      }
     }
     else
     {
@@ -381,26 +687,18 @@ int main(int argc, char *argv[])
           usage(true, argc==1);
         }
         laswriteopener.set_force(TRUE);
-        laswriteopener.make_file_name(lasreadopener.get_file_name(), -2);
-        if (!laswriteopener.format_was_specified())
+        if (format_not_specified)
         {
-          char* file_name_out = strdup(laswriteopener.get_file_name());
-          int len = strlen(file_name_out);
           if (lasreader->get_format() == LAS_TOOLS_FORMAT_LAZ)
           {
-            file_name_out[len-3] = 'l';
-            file_name_out[len-2] = 'a';
-            file_name_out[len-1] = 's';
+            laswriteopener.set_format(LAS_TOOLS_FORMAT_LAS);
           }
-          else 
+          else
           {
-            file_name_out[len-3] = 'l';
-            file_name_out[len-2] = 'a';
-            file_name_out[len-1] = 'z';
+            laswriteopener.set_format(LAS_TOOLS_FORMAT_LAZ);
           }
-          laswriteopener.set_file_name(file_name_out);
-          free(file_name_out);
         }
+        laswriteopener.make_file_name(lasreadopener.get_file_name(), -2);
       }
 
       // maybe set projection
@@ -465,6 +763,8 @@ int main(int argc, char *argv[])
           }
         }
       }
+
+      I64 bytes_written = 0;
 
       // open laswriter
 
@@ -595,13 +895,24 @@ int main(int argc, char *argv[])
           laswriter->update_header(&lasreader->header, TRUE);
         }
 
+        // flush the writer
+        bytes_written = laswriter->close();
+
         if (lax)
         {
           // adaptive coarsening
           lasindex.complete(minimum_points, maximum_intervals);
 
-          // write lax to file
-          lasindex.write(laswriteopener.get_file_name());
+          if (append)
+          {
+            // append lax to file
+            lasindex.append(laswriteopener.get_file_name());
+          }
+          else
+          {
+            // write lax to file
+            lasindex.write(laswriteopener.get_file_name());
+          }
         }
       }
       else
@@ -627,11 +938,22 @@ int main(int argc, char *argv[])
               laswriter->write_point(&lasreader->point);
             }
 
+            // flush the writer
+            bytes_written = laswriter->close();
+
             // adaptive coarsening
             lasindex.complete(minimum_points, maximum_intervals);
 
-            // write lax to file
-            lasindex.write(laswriteopener.get_file_name());
+            if (append)
+            {
+              // append lax to file
+              lasindex.append(laswriteopener.get_file_name());
+            }
+            else
+            {
+              // write lax to file
+              lasindex.write(laswriteopener.get_file_name());
+            }
           }
           else
           {
@@ -655,11 +977,150 @@ int main(int argc, char *argv[])
             }
             else
             {
-              while (lasreader->read_point())
+              if (compatible == 2) // down
               {
-                laswriter->write_point(&lasreader->point);
+                I32 scan_angle_remainder;
+                I32 number_of_returns_increment;
+                I32 return_number_increment;
+                I32 overlap_bit;
+                I32 scanner_channel;
+                LASpoint laspoint;
+                laspoint.init(&lasreader->header, lasreader->header.point_data_format, lasreader->header.point_data_record_length, &lasreader->header);
+                if (compatible_version == 1)
+                {
+                  I32 start_scan_angle = lasreader->header.get_attribute_start("LAS 1.4 scan angle");
+                  I32 start_extended_returns = lasreader->header.get_attribute_start("LAS 1.4 extended returns");
+                  I32 start_classification = lasreader->header.get_attribute_start("LAS 1.4 classification");
+                  I32 start_flags_and_channel = lasreader->header.get_attribute_start("LAS 1.4 flags and channel");
+                  I32 start_NIR_band = lasreader->header.get_attribute_start("LAS 1.4 NIR band");
+                  while (lasreader->read_point())
+                  {
+                    // copy point
+                    laspoint = lasreader->point;
+                    // distill individual attributes
+                    scan_angle_remainder = laspoint.extended_scan_angle - I16_QUANTIZE(((F32)laspoint.scan_angle_rank)/0.006f);
+                    if (laspoint.extended_number_of_returns <= 7)
+                    {
+                      laspoint.number_of_returns = laspoint.extended_number_of_returns;
+                      if (laspoint.extended_return_number <= 7)
+                      {
+                        laspoint.return_number = laspoint.extended_return_number;
+                      }
+                      else
+                      {
+                        laspoint.return_number = 7;
+                      }
+                    }
+                    else
+                    {
+                      laspoint.number_of_returns = 7;
+                      if (laspoint.extended_return_number < 7)
+                      {
+                        laspoint.return_number = laspoint.extended_return_number;
+                      }
+                      else
+                      {
+                        if (laspoint.extended_return_number < laspoint.extended_number_of_returns)
+                        {
+                          laspoint.return_number = 6;
+                        }
+                        else
+                        {
+                          laspoint.return_number = 7;
+                        }
+                      }
+                    }
+                    return_number_increment = laspoint.extended_return_number - laspoint.return_number;
+                    assert(return_number_increment >= 0);
+                    number_of_returns_increment = laspoint.extended_number_of_returns - laspoint.number_of_returns;
+                    assert(number_of_returns_increment >= 0);
+                    if (laspoint.extended_classification > 31)
+                    {
+                      laspoint.set_classification(0);
+                    }
+                    else
+                    {
+                      laspoint.extended_classification = 0;
+                    }
+                    scanner_channel = laspoint.extended_scanner_channel;
+                    overlap_bit = (laspoint.extended_classification_flags >> 3);
+                    // compose
+                    laspoint.set_attribute(start_scan_angle, ((I16)scan_angle_remainder));
+                    laspoint.set_attribute(start_extended_returns, (U8)((return_number_increment << 4) | number_of_returns_increment));
+                    laspoint.set_attribute(start_classification, (U8)(laspoint.extended_classification));
+                    laspoint.set_attribute(start_flags_and_channel, (U8)((scanner_channel << 1) | overlap_bit));
+                    if (start_NIR_band != -1)
+                    {
+                      laspoint.set_attribute(start_NIR_band, laspoint.rgb[3]);
+                    }
+                    laswriter->write_point(&laspoint);
+                  }
+                }
+                else
+                {
+                  fprintf(stderr, "ERROR: compatibility mode version %u not implemented\n", compatible_version);
+                  byebye(true);
+                }
+              }
+              else if (compatible == 3) // up
+              {
+                LASpoint laspoint;
+                laspoint.init(&lasreader->header, lasreader->header.point_data_format, lasreader->header.point_data_record_length, &lasreader->header);
+                I32 number_of_returns_increment;
+                I32 return_number_increment;
+                I32 overlap_bit;
+                I32 scanner_channel;
+                if (compatible_version == 1)
+                {
+                  I16 scan_angle;
+                  U8 extended_returns;
+                  U8 classification;
+                  U8 flags_and_channel;
+
+                  while (lasreader->read_point())
+                  {
+                    // copy point
+                    laspoint = lasreader->point;
+                    // get extra_attributes
+                    lasreader->point.get_attribute(compatible_start_scan_angle, scan_angle);
+                    lasreader->point.get_attribute(compatible_start_extended_returns, extended_returns);
+                    lasreader->point.get_attribute(compatible_start_classification, classification);
+                    lasreader->point.get_attribute(compatible_start_flags_and_channel, flags_and_channel);
+                    if (compatible_start_NIR_band != -1)
+                    {
+                      lasreader->point.get_attribute(compatible_start_NIR_band, laspoint.rgb[3]);
+                    }
+                    // decompose into individual attributes
+                    return_number_increment = (extended_returns >> 4) & 0x0F;
+                    number_of_returns_increment = extended_returns & 0x0F;
+                    scanner_channel = (flags_and_channel >> 1) & 0x03;
+                    overlap_bit = flags_and_channel & 0x01;
+                    // instill into point
+                    laspoint.extended_scan_angle = scan_angle + I16_QUANTIZE(((F32)laspoint.scan_angle_rank) / 0.006f);
+                    laspoint.extended_return_number = return_number_increment + laspoint.return_number;
+                    laspoint.extended_number_of_returns = number_of_returns_increment + laspoint.number_of_returns;
+                    laspoint.extended_classification = classification + laspoint.get_classification();
+                    laspoint.extended_scanner_channel = scanner_channel;
+                    laspoint.extended_classification_flags = (overlap_bit << 3) | (laspoint.classification >> 5);
+                    laswriter->write_point(&laspoint);
+                  }
+                }
+                else
+                {
+                  fprintf(stderr, "ERROR: compatibility mode version %u not implemented\n", compatible_version);
+                  byebye(true);
+                }
+              }
+              else
+              {
+                while (lasreader->read_point())
+                {
+                  laswriter->write_point(&lasreader->point);
+                }
               }
             }
+            // flush the writer
+            bytes_written = laswriter->close();
           }
         }
         else
@@ -682,11 +1143,22 @@ int main(int argc, char *argv[])
               laswriter->update_inventory(&lasreader->point);
             }
 
+            // flush the writer
+            bytes_written = laswriter->close();
+
             // adaptive coarsening
             lasindex.complete(minimum_points, maximum_intervals);
 
-            // write lax to file
-            lasindex.write(laswriteopener.get_file_name());
+            if (append)
+            {
+              // append lax to file
+              lasindex.append(laswriteopener.get_file_name());
+            }
+            else
+            {
+              // write lax to file
+              lasindex.write(laswriteopener.get_file_name());
+            }
           }
           else
           {
@@ -716,17 +1188,21 @@ int main(int argc, char *argv[])
               }
             }
           }
+
+          // update the header
           laswriter->update_header(&lasreader->header, TRUE);
+
+          // flush the writer
+          bytes_written = laswriter->close();
         }
       }
 
-      I64 total_bytes = laswriter->close();
       delete laswriter;
   
 #ifdef _WIN32
-      if (verbose) fprintf(stderr,"%g secs to write %I64d bytes for '%s' with %I64d points of type %d\n", taketime()-start_time, total_bytes, laswriteopener.get_file_name(), lasreader->p_count, lasreader->header.point_data_format);
+      if (verbose) fprintf(stderr,"%g secs to write %I64d bytes for '%s' with %I64d points of type %d\n", taketime()-start_time, bytes_written, laswriteopener.get_file_name(), lasreader->p_count, lasreader->header.point_data_format);
 #else
-      if (verbose) fprintf(stderr,"%g secs to write %lld bytes for '%s' with %lld points of type %d\n", taketime()-start_time, total_bytes, laswriteopener.get_file_name(), lasreader->p_count, lasreader->header.point_data_format);
+      if (verbose) fprintf(stderr,"%g secs to write %lld bytes for '%s' with %lld points of type %d\n", taketime()-start_time, bytes_written, laswriteopener.get_file_name(), lasreader->p_count, lasreader->header.point_data_format);
 #endif
 
       if (start_of_waveform_data_packet_record && !waveform)
@@ -777,6 +1253,10 @@ int main(int argc, char *argv[])
       }
 
       laswriteopener.set_file_name(0);
+      if (format_not_specified)
+      {
+        laswriteopener.set_format((const CHAR*)NULL);
+      }
     }
   
     lasreader->close();
@@ -792,6 +1272,8 @@ int main(int argc, char *argv[])
       free(geo_double_params);
     }
   }
+
+  if (verbose && lasreadopener.get_file_name_number() > 1) fprintf(stderr,"needed %g sec for %u files\n", taketime()-total_start_time, lasreadopener.get_file_name_number());
 
   byebye(false, argc==1);
 

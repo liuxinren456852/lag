@@ -19,11 +19,11 @@
   
   COPYRIGHT:
   
-    (c) 2007-12, martin isenburg, rapidlasso - fast tools to catch reality
+    (c) 2007-13, martin isenburg, rapidlasso - fast tools to catch reality
 
     This is free software; you can redistribute and/or modify it under the
     terms of the GNU Lesser General Licence as published by the Free Software
-    Foundation except for (R). See the LICENSE.txt file for more information.
+    Foundation. See the LICENSE.txt file for more information.
 
     This software is distributed WITHOUT ANY WARRANTY and without even the
     implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
@@ -36,7 +36,7 @@
      5 September 2011 -- also compute total area covered and point densities
     26 January 2011 -- added LAStransform because it allows quick previews
     21 January 2011 -- added LASreadOpener and reading of multiple LAS files 
-     4 January 2011 -- added the LASfilter to clip or eliminate points 
+     4 January 2011 -- added the LASfilter to drop or keep points 
     10 July 2009 -- '-auto_date' sets the day/year from the file creation date
     12 March 2009 -- updated to ask for input if started without arguments 
      9 March 2009 -- added output for size of user-defined header data
@@ -49,6 +49,7 @@
 ===============================================================================
 */
 
+#include "geoprojectionconverter.hpp"
 #include "lasreader.hpp"
 #include "lasutility.hpp"
 #include "laswriter.hpp"
@@ -61,25 +62,25 @@
 #include <windows.h>
 #endif
 
-static const char * LASpointClassification [] = {
-  "Created, never classified",
-  "Unclassified",
-  "Ground",
-  "Low Vegetation",
-  "Medium Vegetation",
-  "High Vegetation",
-  "Building",
-  "Low Point (noise)",
-  "Model Key-point (mass point)",
-  "Water",
-  "Reserved for ASPRS Definition",
-  "Reserved for ASPRS Definition",
-  "Overlap Points",
-  "Reserved for ASPRS Definition",
-  "Reserved for ASPRS Definition",
-  "Reserved for ASPRS Definition",
-  "Reserved for ASPRS Definition",
-  "Reserved for ASPRS Definition",
+static const char * LASpointClassification [32] = {
+  "never classified",
+  "unclassified",
+  "ground",
+  "low vegetation",
+  "medium vegetation",
+  "high vegetation",
+  "building",
+  "noise",
+  "keypoint",
+  "water",
+  "rail",
+  "road surface",
+  "overlap",
+  "wire guard",
+  "wire conductor",
+  "tower",
+  "wire connector",
+  "bridge deck",
   "Reserved for ASPRS Definition",
   "Reserved for ASPRS Definition",
   "Reserved for ASPRS Definition",
@@ -106,6 +107,7 @@ void usage(bool error=false, bool wait=false)
   fprintf(stderr,"lasinfo -no_header -no_vlrs -i lidar.laz\n");
   fprintf(stderr,"lasinfo -nv -nc -stdout -i lidar.las\n");
   fprintf(stderr,"lasinfo -nv -nc -stdout -i *.laz -single | grep version\n");
+  fprintf(stderr,"lasinfo -i *.laz -subseq 100000 100100 -histo user_data 8\n");
   fprintf(stderr,"lasinfo -i *.las -repair\n");
   fprintf(stderr,"lasinfo -i *.laz -repair_bb -set_file_creation 8 2007\n");
   fprintf(stderr,"lasinfo -i *.las -repair_counters -set_version 1.2\n");
@@ -158,11 +160,11 @@ static int lidardouble2string(char* string, double value, double precision)
     sprintf(string, "%.1f", value);
   else if (precision == 0.01)
     sprintf(string, "%.2f", value);
-  else if (precision == 0.001)
+  else if (precision == 0.001 || precision == 0.002 || precision == 0.005 || precision == 0.025) 
     sprintf(string, "%.3f", value);
-  else if (precision == 0.0001)
+  else if (precision == 0.0001 || precision == 0.0002 || precision == 0.0005 || precision == 0.0025)
     sprintf(string, "%.4f", value);
-  else if (precision == 0.00001)
+  else if (precision == 0.00001 || precision == 0.00002 || precision == 0.00005 || precision == 0.00025)
     sprintf(string, "%.5f", value);
   else if (precision == 0.000001)
     sprintf(string, "%.6f", value);
@@ -192,6 +194,7 @@ int main(int argc, char *argv[])
 #ifdef COMPILE_WITH_MULTI_CORE
   I32 cores = 1;
 #endif
+  bool wait = false;
   bool verbose = false;
   bool no_header = false;
   bool no_variable_header = false;
@@ -204,7 +207,7 @@ int main(int argc, char *argv[])
   bool repair_bb = false;
   bool repair_counters = false;
   bool change_header = false;
-  I32 set_file_source_id = -1;
+  I32 set_file_source_ID = -1;
   I32 set_global_encoding = -1;
   I8 set_version_major = -1;
   I8 set_version_minor = -1;
@@ -225,10 +228,14 @@ int main(int argc, char *argv[])
   bool auto_date_creation = false;
   FILE* file_out = stderr;
   U32 horizontal_units = 0; 
+  // extract a subsequence
+  U32 subsequence_start = 0;
+  U32 subsequence_stop = U32_MAX;
   U32 progress = 0;
 
   LAShistogram lashistogram;
   LASreadOpener lasreadopener;
+  GeoProjectionConverter geoprojectionconverter;
   LASwriteOpener laswriteopener;
 
   if (argc == 1)
@@ -251,6 +258,7 @@ int main(int argc, char *argv[])
     }
     if (!lashistogram.parse(argc, argv)) byebye(true);
     if (!lasreadopener.parse(argc, argv)) byebye(true);
+    if (!geoprojectionconverter.parse(argc, argv)) byebye(true);
     if (!laswriteopener.parse(argc, argv)) byebye(true);
   }
 
@@ -265,12 +273,12 @@ int main(int argc, char *argv[])
     {
       continue;
     }
-    else if (strcmp(argv[i],"-h") == 0 || strcmp(argv[i],"-help") == 0)
+    else if (strcmp(argv[i],"-h") == 0)
     {
       fprintf(stderr, "LAStools (by martin@rapidlasso.com) version %d\n", LAS_TOOLS_VERSION);
       usage();
     }
-    else if (strcmp(argv[i],"-v") == 0 || strcmp(argv[i],"-verbose") == 0)
+    else if (strcmp(argv[i],"-v") == 0)
     {
       verbose = true;
     }
@@ -278,6 +286,10 @@ int main(int argc, char *argv[])
     {
       fprintf(stderr, "LAStools (by martin@rapidlasso.com) version %d\n", LAS_TOOLS_VERSION);
       byebye();
+    }
+    else if (strcmp(argv[i],"-wait") == 0)
+    {
+      wait = true;
     }
     else if (strcmp(argv[i],"-gui") == 0)
     {
@@ -301,6 +313,7 @@ int main(int argc, char *argv[])
       argv[i][0] = '\0';
 #else
       fprintf(stderr, "WARNING: not compiled with multi-core batching. ignoring '-cores' ...\n");
+      i++;
 #endif
     }
     else if (strcmp(argv[i],"-quiet") == 0)
@@ -345,6 +358,36 @@ int main(int argc, char *argv[])
       report_outside = true;
       check_outside = true;
     }
+    else if (strcmp(argv[i],"-subseq") == 0)
+    {
+      if ((i+2) >= argc)
+      {
+        fprintf(stderr,"ERROR: '%s' needs 2 arguments: start stop\n", argv[i]);
+        byebye(true);
+      }
+      subsequence_start = (U32)atoi(argv[i+1]); subsequence_stop = (U32)atoi(argv[i+2]);
+      i+=2;
+    }
+    else if (strcmp(argv[i],"-start_at_point") == 0)
+    {
+      if ((i+1) >= argc)
+      {
+        fprintf(stderr,"ERROR: '%s' needs 1 argument: start\n", argv[i]);
+        byebye(true);
+      }
+      subsequence_start = (unsigned int)atoi(argv[i+1]);
+      i+=1;
+    }
+    else if (strcmp(argv[i],"-stop_at_point") == 0)
+    {
+      if ((i+1) >= argc)
+      {
+        fprintf(stderr,"ERROR: '%s' needs 1 argument: stop\n", argv[i]);
+        byebye(true);
+      }
+      subsequence_stop = (unsigned int)atoi(argv[i+1]);
+      i+=1;
+    }
     else if (strcmp(argv[i],"-repair") == 0)
     {
       lasreadopener.set_merged(FALSE);
@@ -366,7 +409,7 @@ int main(int argc, char *argv[])
       lasreadopener.set_merged(FALSE);
       auto_date_creation = true;
     }
-    else if (strcmp(argv[i],"-set_file_source_id") == 0)
+    else if (strcmp(argv[i],"-set_file_source_ID") == 0)
     {
       lasreadopener.set_merged(FALSE);
       if ((i+1) >= argc)
@@ -375,7 +418,7 @@ int main(int argc, char *argv[])
         byebye(true);
       }
 			i++;
-			set_file_source_id = atoi(argv[i]);
+			set_file_source_ID = atoi(argv[i]);
       change_header = true;
 		}
     else if (strcmp(argv[i],"-set_system_identifier") == 0)
@@ -710,9 +753,16 @@ int main(int argc, char *argv[])
     U32 number_of_point_records = lasheader->number_of_point_records;
     U32 number_of_points_by_return0 = lasheader->number_of_points_by_return[0];
 
+    // print name of file
+
+    if (file_out && lasreadopener.get_file_name())
+    {
+      fprintf(file_out, "lasinfo for %s\012", lasreadopener.get_file_name());
+    }
+
     // print header info
 
-    char printstring[4096];
+    CHAR printstring[4096];
 
     if (file_out && !no_header)
     {
@@ -723,7 +773,7 @@ int main(int argc, char *argv[])
 #endif
       fprintf(file_out, "reporting all LAS header entries:\012");
       fprintf(file_out, "  file signature:             '%.4s'\012", lasheader->file_signature);
-      fprintf(file_out, "  file source ID:             %d\012", lasheader->file_source_id);
+      fprintf(file_out, "  file source ID:             %d\012", lasheader->file_source_ID);
       fprintf(file_out, "  global_encoding:            %d\012", lasheader->global_encoding);
       fprintf(file_out, "  project ID GUID data 1-4:   %08X-%04X-%04X-%04X-%04X%08X\012", lasheader->project_ID_GUID_data_1, lasheader->project_ID_GUID_data_2, lasheader->project_ID_GUID_data_3, *((U16*)(lasheader->project_ID_GUID_data_4)), *((U16*)(lasheader->project_ID_GUID_data_4+2)), *((U32*)(lasheader->project_ID_GUID_data_4+4)));
       fprintf(file_out, "  version major.minor:        %d.%d\012", lasheader->version_major, lasheader->version_minor);
@@ -737,7 +787,7 @@ int main(int argc, char *argv[])
       fprintf(file_out, "  point data record length:   %d\012", lasheader->point_data_record_length);
       fprintf(file_out, "  number of point records:    %u\012", lasheader->number_of_point_records);
       fprintf(file_out, "  number of points by return: %u %u %u %u %u\012", lasheader->number_of_points_by_return[0], lasheader->number_of_points_by_return[1], lasheader->number_of_points_by_return[2], lasheader->number_of_points_by_return[3], lasheader->number_of_points_by_return[4]);
-      fprintf(file_out, "  scale factor x y z:         %g %g %g\012", lasheader->x_scale_factor, lasheader->y_scale_factor, lasheader->z_scale_factor);
+      fprintf(file_out, "  scale factor x y z:         "); lidardouble2string(printstring, lasheader->x_scale_factor); fprintf(file_out, "%s ", printstring);  lidardouble2string(printstring, lasheader->y_scale_factor); fprintf(file_out, "%s ", printstring);  lidardouble2string(printstring, lasheader->z_scale_factor); fprintf(file_out, "%s\012", printstring);
       fprintf(file_out, "  offset x y z:               "); lidardouble2string(printstring, lasheader->x_offset); fprintf(file_out, "%s ", printstring);  lidardouble2string(printstring, lasheader->y_offset); fprintf(file_out, "%s ", printstring);  lidardouble2string(printstring, lasheader->z_offset); fprintf(file_out, "%s\012", printstring);
       fprintf(file_out, "  min x y z:                  "); lidardouble2string(printstring, lasheader->min_x, lasheader->x_scale_factor); fprintf(file_out, "%s ", printstring); lidardouble2string(printstring, lasheader->min_y, lasheader->y_scale_factor); fprintf(file_out, "%s ", printstring); lidardouble2string(printstring, lasheader->min_z, lasheader->z_scale_factor); fprintf(file_out, "%s\012", printstring);
       fprintf(file_out, "  max x y z:                  "); lidardouble2string(printstring, lasheader->max_x, lasheader->x_scale_factor); fprintf(file_out, "%s ", printstring); lidardouble2string(printstring, lasheader->max_y, lasheader->y_scale_factor); fprintf(file_out, "%s ", printstring); lidardouble2string(printstring, lasheader->max_z, lasheader->z_scale_factor); fprintf(file_out, "%s\012", printstring);
@@ -806,6 +856,9 @@ int main(int argc, char *argv[])
                     break;
                   case 3:
                     fprintf(file_out, "GTModelTypeGeoKey: ModelTypeGeocentric\012");
+                    break;
+                  case 0: // ModelTypeUndefined   
+                    fprintf(file_out, "GTModelTypeGeoKey: ModelTypeUndefined\012");
                     break;
                   default:
                     fprintf(file_out, "GTModelTypeGeoKey: look-up for %d not implemented\012", lasreader->header.vlr_geo_key_entries[j].value_offset);
@@ -917,6 +970,9 @@ int main(int argc, char *argv[])
                   case 4269: // GCS_NAD83
                     fprintf(file_out, "GeographicTypeGeoKey: GCS_NAD83\012");
                     break;
+                  case 4283: // GCS_GDA94
+                    fprintf(file_out, "GeographicTypeGeoKey: GCS_GDA94\012");
+                    break;
                   case 4322: // GCS_WGS_72
                     fprintf(file_out, "GeographicTypeGeoKey: GCS_WGS_72\012");
                     break;
@@ -956,6 +1012,9 @@ int main(int argc, char *argv[])
                     break;
                   case 6269: // Datum_North_American_Datum_1983
                     fprintf(file_out, "GeogGeodeticDatumGeoKey: Datum_North_American_Datum_1983\012");
+                    break;
+                  case 6283: // Datum_Geocentric_Datum_of_Australia_1994
+                    fprintf(file_out, "GeogGeodeticDatumGeoKey: Datum_Geocentric_Datum_of_Australia_1994\012");
                     break;
                   case 6322: // Datum_WGS72
                     fprintf(file_out, "GeogGeodeticDatumGeoKey: Datum_WGS72\012");
@@ -1285,1485 +1344,15 @@ int main(int argc, char *argv[])
                     fprintf(file_out, "GeogPrimeMeridianLongGeoKey: %.10g\012",lasreader->header.vlr_geo_double_params[lasreader->header.vlr_geo_key_entries[j].value_offset]);
                   }
                   break;
-                case 3072: // ProjectedCSTypeGeoKey 
-                  switch (lasreader->header.vlr_geo_key_entries[j].value_offset)
+                case 3072: // ProjectedCSTypeGeoKey
+                  if (geoprojectionconverter.set_ProjectedCSTypeGeoKey(lasreader->header.vlr_geo_key_entries[j].value_offset, printstring))
                   {
-                  case 32767: // user-defined
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: user-defined\012");
-                    break;
-                  case 2180:
-                      horizontal_units = 9001;
-                      fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_ETRS89_Poland_CS92\012");
-                      break;
-                  case 20137: // PCS_Adindan_UTM_zone_37N
-                  case 20138: // PCS_Adindan_UTM_zone_38N
-                    horizontal_units = 9001;
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_Adindan_UTM_zone_%dN\012", lasreader->header.vlr_geo_key_entries[j].value_offset-20100);
-                    break;
-                  case 20248: // PCS_AGD66_AMG_zone_48
-                  case 20249:
-                  case 20250:
-                  case 20251:
-                  case 20252:
-                  case 20253:
-                  case 20254:
-                  case 20255:
-                  case 20256:
-                  case 20257:
-                  case 20258: // PCS_AGD66_AMG_zone_58
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_AGD66_AMG_zone_%d\012", lasreader->header.vlr_geo_key_entries[j].value_offset-20200);
-                    break;
-                  case 20348: // PCS_AGD84_AMG_zone_48
-                  case 20349:
-                  case 20350:
-                  case 20351:
-                  case 20352:
-                  case 20353:
-                  case 20354:
-                  case 20355:
-                  case 20356:
-                  case 20357:
-                  case 20358: // PCS_AGD84_AMG_zone_58
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_AGD84_AMG_zone_%d\012", lasreader->header.vlr_geo_key_entries[j].value_offset-20300);
-                    break;
-                  case 20437: // PCS_Ain_el_Abd_UTM_zone_37N
-                  case 20438: // PCS_Ain_el_Abd_UTM_zone_38N
-                  case 20439: // PCS_Ain_el_Abd_UTM_zone_39N
-                    horizontal_units = 9001;
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_Ain_el_Abd_UTM_zone_%dN\012", lasreader->header.vlr_geo_key_entries[j].value_offset-20400);
-                    break;                
-                  case 20538: // PCS_Afgooye_UTM_zone_38N
-                  case 20539: // PCS_Afgooye_UTM_zone_39N
-                    horizontal_units = 9001;
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_Afgooye_UTM_zone_%dN\012", lasreader->header.vlr_geo_key_entries[j].value_offset-20500);
-                    break;
-                  case 20822: // PCS_Aratu_UTM_zone_22S
-                  case 20823: // PCS_Aratu_UTM_zone_23S
-                  case 20824: // PCS_Aratu_UTM_zone_24S
-                    horizontal_units = 9001;
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_Aratu_UTM_zone_%dS\012", lasreader->header.vlr_geo_key_entries[j].value_offset-20800);
-                    break;
-                  case 21148: // PCS_Batavia_UTM_zone_48S
-                  case 21149: // PCS_Batavia_UTM_zone_49S
-                  case 21150: // PCS_Batavia_UTM_zone_50S
-                    horizontal_units = 9001;
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_Batavia_UTM_zone_%dS\012", lasreader->header.vlr_geo_key_entries[j].value_offset-21100);
-                    break;
-                  case 21817: // PCS_Bogota_UTM_zone_17N
-                  case 21818: // PCS_Bogota_UTM_zone_18N
-                    horizontal_units = 9001;
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_Bogota_UTM_zone_%dN\012", lasreader->header.vlr_geo_key_entries[j].value_offset-21800);
-                    break;
-                  case 22032: // PCS_Camacupa_UTM_32S
-                  case 22033: // PCS_Camacupa_UTM_33S
-                    horizontal_units = 9001;
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_Camacupa_UTM_%dS\012", lasreader->header.vlr_geo_key_entries[j].value_offset-22000);
-                    break; 
-                  case 22332: // PCS_Carthage_UTM_zone_32N
-                    horizontal_units = 9001;
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_Carthage_UTM_zone_32N\012");
-                    break; 
-                  case 22523: // PCS_Corrego_Alegre_UTM_23S
-                  case 22524: // PCS_Corrego_Alegre_UTM_24S
-                    horizontal_units = 9001;
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_Corrego_Alegre_UTM_%dS\012", lasreader->header.vlr_geo_key_entries[j].value_offset-22500);
-                    break;
-                  case 22832: // PCS_Douala_UTM_zone_32N
-                    horizontal_units = 9001;
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_Douala_UTM_zone_32N\012");
-                    break;
-                  case 23028: // PCS_ED50_UTM_zone_28N
-                  case 23029: // PCS_ED50_UTM_zone_29N
-                  case 23030: 
-                  case 23031: 
-                  case 23032: 
-                  case 23033: 
-                  case 23034: 
-                  case 23035: 
-                  case 23036: 
-                  case 23037: 
-                  case 23038: // PCS_ED50_UTM_zone_38N
-                    horizontal_units = 9001;
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_ED50_UTM_zone_%dN\012", lasreader->header.vlr_geo_key_entries[j].value_offset-23000);
-                    break;
-                  case 23239: // PCS_Fahud_UTM_zone_39N
-                  case 23240: // PCS_Fahud_UTM_zone_40N
-                    horizontal_units = 9001;
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_Fahud_UTM_zone_%dN\012", lasreader->header.vlr_geo_key_entries[j].value_offset-23200);
-                    break;
-                  case 23433: // PCS_Garoua_UTM_zone_33N
-                    horizontal_units = 9001;
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_Garoua_UTM_zone_33N\012");
-                    break;
-                  case 23846: // PCS_ID74_UTM_zone_46N
-                  case 23847: // PCS_ID74_UTM_zone_47N
-                  case 23848:
-                  case 23849:
-                  case 23850:
-                  case 23851:
-                  case 23852:
-                  case 23853: // PCS_ID74_UTM_zone_53N
-                    horizontal_units = 9001;
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_ID74_UTM_zone_%dN\012", lasreader->header.vlr_geo_key_entries[j].value_offset-23800);
-                    break;
-                  case 23886: // PCS_ID74_UTM_zone_46S
-                  case 23887: // PCS_ID74_UTM_zone_47S
-                  case 23888:
-                  case 23889:
-                  case 23890:
-                  case 23891:
-                  case 23892:
-                  case 23893:
-                  case 23894: // PCS_ID74_UTM_zone_54S
-                    horizontal_units = 9001;
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_ID74_UTM_zone_%dS\012", lasreader->header.vlr_geo_key_entries[j].value_offset-23840);
-                    break;
-                  case 23947: // PCS_Indian_1954_UTM_47N
-                  case 23948: // PCS_Indian_1954_UTM_48N
-                    horizontal_units = 9001;
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_Indian_1954_UTM_%dN\012", lasreader->header.vlr_geo_key_entries[j].value_offset-23900);
-                    break;
-                  case 24047: // PCS_Indian_1975_UTM_47N
-                  case 24048: // PCS_Indian_1975_UTM_48N
-                    horizontal_units = 9001;
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_Indian_1975_UTM_%dN\012", lasreader->header.vlr_geo_key_entries[j].value_offset-24000);
-                    break;
-                  case 24547: // PCS_Kertau_UTM_zone_47N
-                  case 24548: // PCS_Kertau_UTM_zone_48N
-                    horizontal_units = 9001;
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_Kertau_UTM_zone_%dN\012", lasreader->header.vlr_geo_key_entries[j].value_offset-24500);
-                    break;
-                  case 24720: // PCS_La_Canoa_UTM_zone_20N
-                  case 24721: // PCS_La_Canoa_UTM_zone_21N
-                    horizontal_units = 9001;
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_La_Canoa_UTM_zone_%dN\012", lasreader->header.vlr_geo_key_entries[j].value_offset-24700);
-                    break;
-                  case 24818: // PCS_PSAD56_UTM_zone_18N
-                  case 24819: // PCS_PSAD56_UTM_zone_19N
-                  case 24820: // PCS_PSAD56_UTM_zone_20N
-                  case 24821: // PCS_PSAD56_UTM_zone_21N
-                    horizontal_units = 9001;
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_PSAD56_UTM_zone_%dN\012", lasreader->header.vlr_geo_key_entries[j].value_offset-24800);
-                    break;
-                  case 24877: // PCS_PSAD56_UTM_zone_17S
-                  case 24878: // PCS_PSAD56_UTM_zone_18S
-                  case 24879: // PCS_PSAD56_UTM_zone_19S
-                  case 24880: // PCS_PSAD56_UTM_zone_20S
-                    horizontal_units = 9001;
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_PSAD56_UTM_zone_%dS\012", lasreader->header.vlr_geo_key_entries[j].value_offset-24860);
-                    break;
-                  case 25231: // PCS_Lome_UTM_zone_31N
-                    horizontal_units = 9001;
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_Lome_UTM_zone_31N\012");
-                    break;
-                  case 25828: // PCS_ETRS89_UTM_zone_28N
-                  case 25829: // PCS_ETRS89_UTM_zone_29N
-                  case 25830: // PCS_ETRS89_UTM_zone_30N
-                  case 25831: // PCS_ETRS89_UTM_zone_31N
-                  case 25832: // PCS_ETRS89_UTM_zone_32N
-                  case 25833: // PCS_ETRS89_UTM_zone_33N
-                  case 25834: // PCS_ETRS89_UTM_zone_34N
-                  case 25835: // PCS_ETRS89_UTM_zone_35N
-                  case 25836: // PCS_ETRS89_UTM_zone_36N
-                  case 25837: // PCS_ETRS89_UTM_zone_37N
-                  case 25838: // PCS_ETRS89_UTM_zone_38N
-                    horizontal_units = 9001;
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_ETRS89_UTM_zone_%dN\012", lasreader->header.vlr_geo_key_entries[j].value_offset-25800);
-                    break;
-                  case 25932: // PCS_Malongo_1987_UTM_32S
-                    horizontal_units = 9001;
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_Malongo_1987_UTM_32S\012");
-                    break;
-                  case 26237: // PCS_Massawa_UTM_zone_37N
-                    horizontal_units = 9001;
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_Massawa_UTM_zone_37N\012");
-                    break;
-                  case 26331: // PCS_Minna_UTM_zone_31N
-                  case 26332: // PCS_Minna_UTM_zone_32N
-                    horizontal_units = 9001;
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_Minna_UTM_zone_%dN\012", lasreader->header.vlr_geo_key_entries[j].value_offset-26300);
-                    break;
-                  case 26432: // PCS_Mhast_UTM_zone_32S
-                    horizontal_units = 9001;
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_Mhast_UTM_zone_32S\012");
-                    break;
-                  case 26632: // PCS_M_poraloko_UTM_32N
-                    horizontal_units = 9001;
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_M_poraloko_UTM_32N\012");
-                    break;
-                  case 26692: // PCS_Minna_UTM_zone_32S
-                    horizontal_units = 9001;
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_Minna_UTM_zone_32S\012");
-                    break;
-                  case 26703: // PCS_NAD27_UTM_zone_3N
-                  case 26704: // PCS_NAD27_UTM_zone_4N
-                  case 26705: // PCS_NAD27_UTM_zone_5N
-                  case 26706: // PCS_NAD27_UTM_zone_6N
-                  case 26707: // PCS_NAD27_UTM_zone_7N
-                  case 26708: // PCS_NAD27_UTM_zone_7N
-                  case 26709: // PCS_NAD27_UTM_zone_9N
-                  case 26710: // PCS_NAD27_UTM_zone_10N
-                  case 26711: // PCS_NAD27_UTM_zone_11N
-                  case 26712: // PCS_NAD27_UTM_zone_12N
-                  case 26713: // PCS_NAD27_UTM_zone_13N
-                  case 26714: // PCS_NAD27_UTM_zone_14N
-                  case 26715: // PCS_NAD27_UTM_zone_15N
-                  case 26716: // PCS_NAD27_UTM_zone_16N
-                  case 26717: // PCS_NAD27_UTM_zone_17N
-                  case 26718: // PCS_NAD27_UTM_zone_18N
-                  case 26719: // PCS_NAD27_UTM_zone_19N
-                  case 26720: // PCS_NAD27_UTM_zone_20N
-                  case 26721: // PCS_NAD27_UTM_zone_21N
-                  case 26722: // PCS_NAD27_UTM_zone_22N
-                    horizontal_units = 9001;
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_UTM_zone_%dN\012", lasreader->header.vlr_geo_key_entries[j].value_offset-26700);
-                    break;
-                  case 26729: // PCS_NAD27_Alabama_East
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Alabama_East\012");
-                    break;
-                  case 26730: // PCS_NAD27_Alabama_West
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Alabama_West\012");
-                    break;
-                  case 26731: // PCS_NAD27_Alaska_zone_1
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Alaska_zone_1\012");
-                    break;
-                  case 26732: // PCS_NAD27_Alaska_zone_2
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Alaska_zone_2\012");
-                    break;
-                  case 26733: // PCS_NAD27_Alaska_zone_3
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Alaska_zone_3\012");
-                    break;
-                  case 26734: // PCS_NAD27_Alaska_zone_4
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Alaska_zone_4\012");
-                    break;
-                  case 26735: // PCS_NAD27_Alaska_zone_5
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Alaska_zone_5\012");
-                    break;
-                  case 26736: // PCS_NAD27_Alaska_zone_6
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Alaska_zone_6\012");
-                    break;
-                  case 26737: // PCS_NAD27_Alaska_zone_7
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Alaska_zone_7\012");
-                    break;
-                  case 26738: // PCS_NAD27_Alaska_zone_8
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Alaska_zone_8\012");
-                    break;
-                  case 26739: // PCS_NAD27_Alaska_zone_9
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Alaska_zone_9\012");
-                    break;
-                  case 26740: // PCS_NAD27_Alaska_zone_10
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Alaska_zone_10\012");
-                    break;
-                  case 26741: // PCS_NAD27_California_I
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_California_I\012");
-                    break;
-                  case 26742: // PCS_NAD27_California_II
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_California_II\012");
-                    break;
-                  case 26743: // PCS_NAD27_California_III
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_California_III\012");
-                    break;
-                  case 26744: // PCS_NAD27_California_IV
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_California_IV\012");
-                    break;
-                  case 26745: // PCS_NAD27_California_V
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_California_V\012");
-                    break;
-                  case 26746: // PCS_NAD27_California_VI
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_California_VI\012");
-                    break;
-                  case 26747: // PCS_NAD27_California_VII
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_California_VII\012");
-                    break;
-                  case 26748: // PCS_NAD27_Arizona_East
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Arizona_East\012");
-                    break;
-                  case 26749: // PCS_NAD27_Arizona_Central
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Arizona_Central\012");
-                    break;
-                  case 26750: // PCS_NAD27_Arizona_West
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Arizona_West\012");
-                    break;
-                  case 26751: // PCS_NAD27_Arkansas_North
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Arkansas_North\012");
-                    break;
-                  case 26752: // PCS_NAD27_Arkansas_South
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Arkansas_South\012");
-                    break;
-                  case 26753: // PCS_NAD27_Colorado_North
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Colorado_North\012");
-                    break;
-                  case 26754: // PCS_NAD27_Colorado_Central
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Colorado_Central\012");
-                    break;
-                  case 26755: // PCS_NAD27_Colorado_South
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Colorado_South\012");
-                    break;
-                  case 26756: // PCS_NAD27_Connecticut
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Connecticut\012");
-                    break;
-                  case 26757: // PCS_NAD27_Delaware
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Delaware\012");
-                    break;
-                  case 26758: // PCS_NAD27_Florida_East
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Florida_East\012");
-                    break;
-                  case 26759: // PCS_NAD27_Florida_West
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Florida_West\012");
-                    break;
-                  case 26760: // PCS_NAD27_Florida_North
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Florida_North\012");
-                    break;
-                  case 26761: // PCS_NAD27_Hawaii_zone_1
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Hawaii_zone_1\012");
-                    break;
-                  case 26762: // PCS_NAD27_Hawaii_zone_2
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Hawaii_zone_2\012");
-                    break;
-                  case 26763: // PCS_NAD27_Hawaii_zone_3
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Hawaii_zone_3\012");
-                    break;
-                  case 26764: // PCS_NAD27_Hawaii_zone_4
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Hawaii_zone_4\012");
-                    break;
-                  case 26765: // PCS_NAD27_Hawaii_zone_5
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Hawaii_zone_5\012");
-                    break;
-                  case 26766: // PCS_NAD27_Georgia_East
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Georgia_East\012");
-                    break;
-                  case 26767: // PCS_NAD27_Georgia_West
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Georgia_West\012");
-                    break;
-                  case 26768: // PCS_NAD27_Idaho_East
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Idaho_East\012");
-                    break;
-                  case 26769: // PCS_NAD27_Idaho_Central
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Idaho_Central\012");
-                    break;
-                  case 26770: // PCS_NAD27_Idaho_West
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Idaho_West\012");
-                    break;
-                  case 26771: // PCS_NAD27_Illinois_East
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Illinois_East\012");
-                    break;
-                  case 26772: // PCS_NAD27_Illinois_West
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Illinois_West\012");
-                    break;
-                  case 26773: // PCS_NAD27_Indiana_East
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Indiana_East\012");
-                    break;
-                  case 26774: // PCS_NAD27_Indiana_West
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Indiana_West\012");
-                    break;
-                  case 26775: // PCS_NAD27_Iowa_North
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Iowa_North\012");
-                    break;
-                  case 26776: // PCS_NAD27_Iowa_South
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Iowa_South\012");
-                    break;
-                  case 26777: // PCS_NAD27_Kansas_North
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Kansas_North\012");
-                    break;
-                  case 26778: // PCS_NAD27_Kansas_South
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Kansas_South\012");
-                    break;
-                  case 26779: // PCS_NAD27_Kentucky_North
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Kentucky_North\012");
-                    break;
-                  case 26780: // PCS_NAD27_Kentucky_South
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Kentucky_South\012");
-                    break;
-                  case 26781: // PCS_NAD27_Louisiana_North
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Louisiana_North\012");
-                    break;
-                  case 26782: // PCS_NAD27_Louisiana_South
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Louisiana_South\012");
-                    break;
-                  case 26783: // PCS_NAD27_Maine_East
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Maine_East\012");
-                    break;
-                  case 26784: // PCS_NAD27_Maine_West
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Maine_West\012");
-                    break;
-                  case 26785: // PCS_NAD27_Maryland
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Maryland\012");
-                    break;
-                  case 26786: // PCS_NAD27_Massachusetts
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Massachusetts\012");
-                    break;
-                  case 26787: // PCS_NAD27_Massachusetts_Is
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Massachusetts_Is\012");
-                    break;
-                  case 26788: // PCS_NAD27_Michigan_North
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Michigan_North\012");
-                    break;
-                  case 26789: // PCS_NAD27_Michigan_Central
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Michigan_Central\012");
-                    break;
-                  case 26790: // PCS_NAD27_Michigan_South
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Michigan_South\012");
-                    break;
-                  case 26791: // PCS_NAD27_Minnesota_North
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Minnesota_North\012");
-                    break;
-                  case 26792: // PCS_NAD27_Minnesota_Cent
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Minnesota_Cent\012");
-                    break;
-                  case 26793: // PCS_NAD27_Minnesota_South
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Minnesota_South\012");
-                    break;
-                  case 26794: // PCS_NAD27_Mississippi_East
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Mississippi_East\012");
-                    break;
-                  case 26795: // PCS_NAD27_Mississippi_West
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Mississippi_West\012");
-                    break;
-                  case 26796: // PCS_NAD27_Missouri_East
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Missouri_East\012");
-                    break;
-                  case 26797: // PCS_NAD27_Missouri_Central
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Missouri_Central\012");
-                    break;
-                  case 26798: // PCS_NAD27_Missouri_West
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Missouri_West\012");
-                    break;
-                  case 26801: // PCS_NAD_Michigan_Michigan_East
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD_Michigan_Michigan_East\012");
-                    break;
-                  case 26802: // PCS_NAD_Michigan_Michigan_Old_Central
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD_Michigan_Michigan_Old_Central\012");
-                    break;
-                  case 26803: // PCS_NAD_Michigan_Michigan_West
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD_Michigan_Michigan_West\012");
-                    break;
-                  case 26903: // PCS_NAD83_UTM_zone_3N
-                  case 26904: // PCS_NAD83_UTM_zone_4N
-                  case 26905: // PCS_NAD83_UTM_zone_5N
-                  case 26906: // PCS_NAD83_UTM_zone_6N
-                  case 26907: // PCS_NAD83_UTM_zone_7N
-                  case 26908: // PCS_NAD83_UTM_zone_7N
-                  case 26909: // PCS_NAD83_UTM_zone_9N
-                  case 26910: // PCS_NAD83_UTM_zone_10N
-                  case 26911: // PCS_NAD83_UTM_zone_11N
-                  case 26912: // PCS_NAD83_UTM_zone_12N
-                  case 26913: // PCS_NAD83_UTM_zone_13N
-                  case 26914: // PCS_NAD83_UTM_zone_14N
-                  case 26915: // PCS_NAD83_UTM_zone_15N
-                  case 26916: // PCS_NAD83_UTM_zone_16N
-                  case 26917: // PCS_NAD83_UTM_zone_17N
-                  case 26918: // PCS_NAD83_UTM_zone_18N
-                  case 26919: // PCS_NAD83_UTM_zone_19N
-                  case 26920: // PCS_NAD83_UTM_zone_20N
-                  case 26921: // PCS_NAD83_UTM_zone_21N
-                  case 26922: // PCS_NAD83_UTM_zone_22N
-                  case 26923: // PCS_NAD83_UTM_zone_23N
-                    horizontal_units = 9001;
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_UTM_zone_%dN\012", lasreader->header.vlr_geo_key_entries[j].value_offset-26900);
-                    break;
-                  case 26929: // PCS_NAD83_Alabama_East
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Alabama_East\012");
-                    break;
-                  case 26930: // PCS_NAD83_Alabama_West
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Alabama_West\012");
-                    break;
-                  case 26931: // PCS_NAD83_Alaska_zone_1
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Alaska_zone_1\012");
-                    break;
-                  case 26932: // PCS_NAD83_Alaska_zone_2
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Alaska_zone_2\012");
-                    break;
-                  case 26933: // PCS_NAD83_Alaska_zone_3
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Alaska_zone_3\012");
-                    break;
-                  case 26934: // PCS_NAD83_Alaska_zone_4
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Alaska_zone_4\012");
-                    break;
-                  case 26935: // PCS_NAD83_Alaska_zone_5
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Alaska_zone_5\012");
-                    break;
-                  case 26936: // PCS_NAD83_Alaska_zone_6
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Alaska_zone_6\012");
-                    break;
-                  case 26937: // PCS_NAD83_Alaska_zone_7
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Alaska_zone_7\012");
-                    break;
-                  case 26938: // PCS_NAD83_Alaska_zone_8
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Alaska_zone_8\012");
-                    break;
-                  case 26939: // PCS_NAD83_Alaska_zone_9
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Alaska_zone_9\012");
-                    break;
-                  case 26940: // PCS_NAD83_Alaska_zone_10
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Alaska_zone_10\012");
-                    break;
-                  case 26941: // PCS_NAD83_California_I
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_California_I\012");
-                    break;
-                  case 26942: // PCS_NAD83_California_II
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_California_II\012");
-                    break;
-                  case 26943: // PCS_NAD83_California_III
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_California_III\012");
-                    break;
-                  case 26944: // PCS_NAD83_California_IV
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_California_IV\012");
-                    break;
-                  case 26945: // PCS_NAD83_California_V
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_California_V\012");
-                    break;
-                  case 26946: // PCS_NAD83_California_VI
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_California_VI\012");
-                    break;
-                  case 26947: // PCS_NAD83_California_VII
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_California_VII\012");
-                    break;
-                  case 26948: // PCS_NAD83_Arizona_East
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Arizona_East\012");
-                    break;
-                  case 26949: // PCS_NAD83_Arizona_Central
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Arizona_Central\012");
-                    break;
-                  case 26950: // PCS_NAD83_Arizona_West
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Arizona_West\012");
-                    break;
-                  case 26951: // PCS_NAD83_Arkansas_North
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Arkansas_North\012");
-                    break;
-                  case 26952: // PCS_NAD83_Arkansas_South
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Arkansas_South\012");
-                    break;
-                  case 26953: // PCS_NAD83_Colorado_North
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Colorado_North\012");
-                    break;
-                  case 26954: // PCS_NAD83_Colorado_Central
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Colorado_Central\012");
-                    break;
-                  case 26955: // PCS_NAD83_Colorado_South
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Colorado_South\012");
-                    break;
-                  case 26956: // PCS_NAD83_Connecticut
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Connecticut\012");
-                    break;
-                  case 26957: // PCS_NAD83_Delaware
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Delaware\012");
-                    break;
-                  case 26958: // PCS_NAD83_Florida_East
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Florida_East\012");
-                    break;
-                  case 26959: // PCS_NAD83_Florida_West
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Florida_West\012");
-                    break;
-                  case 26960: // PCS_NAD83_Florida_North
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Florida_North\012");
-                    break;
-                  case 26961: // PCS_NAD83_Hawaii_zone_1
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Hawaii_zone_1\012");
-                    break;
-                  case 26962: // PCS_NAD83_Hawaii_zone_2
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Hawaii_zone_2\012");
-                    break;
-                  case 26963: // PCS_NAD83_Hawaii_zone_3
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Hawaii_zone_3\012");
-                    break;
-                  case 26964: // PCS_NAD83_Hawaii_zone_4
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Hawaii_zone_4\012");
-                    break;
-                  case 26965: // PCS_NAD83_Hawaii_zone_5
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Hawaii_zone_5\012");
-                    break;
-                  case 26966: // PCS_NAD83_Georgia_East
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Georgia_East\012");
-                    break;
-                  case 26967: // PCS_NAD83_Georgia_West
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Georgia_West\012");
-                    break;
-                  case 26968: // PCS_NAD83_Idaho_East
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Idaho_East\012");
-                    break;
-                  case 26969: // PCS_NAD83_Idaho_Central
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Idaho_Central\012");
-                    break;
-                  case 26970: // PCS_NAD83_Idaho_West
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Idaho_West\012");
-                    break;
-                  case 26971: // PCS_NAD83_Illinois_East
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Illinois_East\012");
-                    break;
-                  case 26972: // PCS_NAD83_Illinois_West
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Illinois_West\012");
-                    break;
-                  case 26973: // PCS_NAD83_Indiana_East
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Indiana_East\012");
-                    break;
-                  case 26974: // PCS_NAD83_Indiana_West
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Indiana_West\012");
-                    break;
-                  case 26975: // PCS_NAD83_Iowa_North
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Iowa_North\012");
-                    break;
-                  case 26976: // PCS_NAD83_Iowa_South
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Iowa_South\012");
-                    break;
-                  case 26977: // PCS_NAD83_Kansas_North
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Kansas_North\012");
-                    break;
-                  case 26978: // PCS_NAD83_Kansas_South
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Kansas_South\012");
-                    break;
-                  case 26979: // PCS_NAD83_Kentucky_North
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Kentucky_North\012");
-                    break;
-                  case 26980: // PCS_NAD83_Kentucky_South
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Kentucky_South\012");
-                    break;
-                  case 26981: // PCS_NAD83_Louisiana_North
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Louisiana_North\012");
-                    break;
-                  case 26982: // PCS_NAD83_Louisiana_South
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Louisiana_South\012");
-                    break;
-                  case 26983: // PCS_NAD83_Maine_East
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Maine_East\012");
-                    break;
-                  case 26984: // PCS_NAD83_Maine_West
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Maine_West\012");
-                    break;
-                  case 26985: // PCS_NAD83_Maryland
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Maryland\012");
-                    break;
-                  case 26986: // PCS_NAD83_Massachusetts
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Massachusetts\012");
-                    break;
-                  case 26987: // PCS_NAD83_Massachusetts_Is
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Massachusetts_Is\012");
-                    break;
-                  case 26988: // PCS_NAD83_Michigan_North
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Michigan_North\012");
-                    break;
-                  case 26989: // PCS_NAD83_Michigan_Central
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Michigan_Central\012");
-                    break;
-                  case 26990: // PCS_NAD83_Michigan_South
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Michigan_South\012");
-                    break;
-                  case 26991: // PCS_NAD83_Minnesota_North
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Minnesota_North\012");
-                    break;
-                  case 26992: // PCS_NAD83_Minnesota_Cent
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Minnesota_Cent\012");
-                    break;
-                  case 26993: // PCS_NAD83_Minnesota_South
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Minnesota_South\012");
-                    break;
-                  case 26994: // PCS_NAD83_Mississippi_East
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Mississippi_East\012");
-                    break;
-                  case 26995: // PCS_NAD83_Mississippi_West
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Mississippi_West\012");
-                    break;
-                  case 26996: // PCS_NAD83_Missouri_East
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Missouri_East\012");
-                    break;
-                  case 26997: // PCS_NAD83_Missouri_Central
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Missouri_Central\012");
-                    break;
-                  case 26998: // PCS_NAD83_Missouri_West
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Missouri_West\012");
-                    break;
-                  case 27700:
-                    horizontal_units = 9001;
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_British_National_Grid\012");
-                    break;
-                  case 28348: // PCS_GDA94_MGA_zone_48
-                  case 28349:
-                  case 28350:
-                  case 28351:
-                  case 28352:
-                  case 28353:
-                  case 28354: // PCS_GDA94_MGA_zone_54
-                  case 28355: // PCS_GDA94_MGA_zone_55
-                  case 28356: // PCS_GDA94_MGA_zone_56
-                  case 28357: // PCS_GDA94_MGA_zone_57
-                  case 28358: // PCS_GDA94_MGA_zone_58
-                    horizontal_units = 9001;
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_GDA94_MGA_zone_%d\012", lasreader->header.vlr_geo_key_entries[j].value_offset-28300);
-                    break;
-                  case 29118: // PCS_SAD69_UTM_zone_18N
-                  case 29119: // PCS_SAD69_UTM_zone_19N
-                  case 29120: // PCS_SAD69_UTM_zone_20N
-                  case 29121: // PCS_SAD69_UTM_zone_21N
-                  case 29122: // PCS_SAD69_UTM_zone_22N
-                    horizontal_units = 9001;
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_SAD69_UTM_zone_%dN\012", lasreader->header.vlr_geo_key_entries[j].value_offset-29100);
-                    break;
-                  case 29177: // PCS_SAD69_UTM_zone_17S
-                  case 29178: // PCS_SAD69_UTM_zone_18S
-                  case 29179: // PCS_SAD69_UTM_zone_19S
-                  case 29180: // PCS_SAD69_UTM_zone_20S
-                  case 29181: // PCS_SAD69_UTM_zone_21S
-                  case 29182: // PCS_SAD69_UTM_zone_22S
-                  case 29183: // PCS_SAD69_UTM_zone_23S
-                  case 29184: // PCS_SAD69_UTM_zone_24S
-                  case 29185: // PCS_SAD69_UTM_zone_25S
-                    horizontal_units = 9001;
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_SAD69_UTM_zone_%dS\012", lasreader->header.vlr_geo_key_entries[j].value_offset-29160);
-                    break;
-                  case 29220: // PCS_Sapper_Hill_UTM_20S
-                  case 29221: // PCS_Sapper_Hill_UTM_21S
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_Sapper_Hill_UTM_%dS\012", lasreader->header.vlr_geo_key_entries[j].value_offset-29200);
-                    break;
-                  case 29333: // PCS_Schwarzeck_UTM_33S
-                    horizontal_units = 9001;
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_Schwarzeck_UTM_33S\012");
-                    break;
-                  case 29635: // PCS_Sudan_UTM_zone_35N
-                  case 29636: // PCS_Sudan_UTM_zone_35N
-                    horizontal_units = 9001;
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_Sudan_UTM_zone_%dN\012", lasreader->header.vlr_geo_key_entries[j].value_offset-29600);
-                    break;
-                  case 29738: // PCS_Tananarive_UTM_38S
-                  case 29739: // PCS_Tananarive_UTM_39S
-                    horizontal_units = 9001;
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_Tananarive_UTM_%dS\012", lasreader->header.vlr_geo_key_entries[j].value_offset-29700);
-                    break;
-                  case 29849: // PCS_Timbalai_1948_UTM_49N
-                  case 29850: // PCS_Timbalai_1948_UTM_50N
-                    horizontal_units = 9001;
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_Timbalai_1948_UTM_%dN\012", lasreader->header.vlr_geo_key_entries[j].value_offset-29800);
-                    break;
-                  case 30339: // PCS_TC_1948_UTM_zone_39N
-                  case 30340: // PCS_TC_1948_UTM_zone_40N
-                    horizontal_units = 9001;
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_TC_1948_UTM_zone_%dN\012", lasreader->header.vlr_geo_key_entries[j].value_offset-30300);
-                    break;
-                  case 30729: // PCS_Nord_Sahara_UTM_29N
-                  case 30730: // PCS_Nord_Sahara_UTM_30N
-                  case 30731: // PCS_Nord_Sahara_UTM_31N
-                  case 30732: // PCS_Nord_Sahara_UTM_32N
-                    horizontal_units = 9001;
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_Nord_Sahara_UTM_%dN\012", lasreader->header.vlr_geo_key_entries[j].value_offset-30700);
-                    break;
-                  case 31028: // PCS_Yoff_UTM_zone_28N
-                    horizontal_units = 9001;
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_Yoff_UTM_zone_28N\012");
-                    break;
-                  case 31121: // PCS_Zanderij_UTM_zone_21N
-                    horizontal_units = 9001;
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_Zanderij_UTM_zone_21N\012");
-                    break;
-                  case 32001: // PCS_NAD27_Montana_North
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Montana_North\012");
-                    break;
-                  case 32002: // PCS_NAD27_Montana_Central
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Montana_Central\012");
-                    break;
-                  case 32003: // PCS_NAD27_Montana_South
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Montana_South\012");
-                    break;
-                  case 32005: // PCS_NAD27_Nebraska_North
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Nebraska_North\012");
-                    break;
-                  case 32006: // PCS_NAD27_Nebraska_South
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Nebraska_South\012");
-                    break;
-                  case 32007: // PCS_NAD27_Nevada_East
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Nevada_East\012");
-                    break;
-                  case 32008: // PCS_NAD27_Nevada_Central
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Nevada_Central\012");
-                    break;
-                  case 32009: // PCS_NAD27_Nevada_West
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Nevada_West\012");
-                    break;
-                  case 32010: // PCS_NAD27_New_Hampshire
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_New_Hampshire\012");
-                    break;
-                  case 32011: // PCS_NAD27_New_Jersey
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_New_Jersey\012");
-                    break;
-                  case 32012: // PCS_NAD27_New_Mexico_East
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_New_Mexico_East\012");
-                    break;
-                  case 32013: // PCS_NAD27_New_Mexico_Cent
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_New_Mexico_Cent\012");
-                    break;
-                  case 32014: // PCS_NAD27_New_Mexico_West
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_New_Mexico_West\012");
-                    break;
-                  case 32015: // PCS_NAD27_New_York_East
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_New_York_East\012");
-                    break;
-                  case 32016: // PCS_NAD27_New_York_Central
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_New_York_Central\012");
-                    break;
-                  case 32017: // PCS_NAD27_New_York_West
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_New_York_West\012");
-                    break;
-                  case 32018: // PCS_NAD27_New_York_Long_Is
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_New_York_Long_Is\012");
-                    break;
-                  case 32019: // PCS_NAD27_North_Carolina
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_North_Carolina\012");
-                    break;
-                  case 32020: // PCS_NAD27_North_Dakota_N
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_North_Dakota_N\012");
-                    break;
-                  case 32021: // PCS_NAD27_North_Dakota_S
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_North_Dakota_S\012");
-                    break;
-                  case 32022: // PCS_NAD27_Ohio_North
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Ohio_North\012");
-                    break;
-                  case 32023: // PCS_NAD27_Ohio_South
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Ohio_South\012");
-                    break;
-                  case 32024: // PCS_NAD27_Oklahoma_North
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Oklahoma_North\012");
-                    break;
-                  case 32025: // PCS_NAD27_Oklahoma_South
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Oklahoma_South\012");
-                    break;
-                  case 32026: // PCS_NAD27_Oregon_North
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Oregon_North\012");
-                    break;
-                  case 32027: // PCS_NAD27_Oregon_South
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Oregon_South\012");
-                    break;
-                  case 32028: // PCS_NAD27_Pennsylvania_N
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Pennsylvania_N\012");
-                    break;
-                  case 32029: // PCS_NAD27_Pennsylvania_S
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Pennsylvania_S\012");
-                    break;
-                  case 32030: // PCS_NAD27_Rhode_Island
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Rhode_Island\012");
-                    break;
-                  case 32031: // PCS_NAD27_South_Carolina_N
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_South_Carolina_N\012");
-                    break;
-                  case 32033: // PCS_NAD27_South_Carolina_S
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_South_Carolina_S\012");
-                    break;
-                  case 32034: // PCS_NAD27_South_Dakota_N
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_South_Dakota_N\012");
-                    break;
-                  case 32035: // PCS_NAD27_South_Dakota_S
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_South_Dakota_S\012");
-                    break;
-                  case 32036: // PCS_NAD27_Tennessee
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Tennessee\012");
-                    break;
-                  case 32037: // PCS_NAD27_Texas_North
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Texas_North\012");
-                    break;
-                  case 32038: // PCS_NAD27_Texas_North_Cen
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Texas_North_Cen\012");
-                    break;
-                  case 32039: // PCS_NAD27_Texas_Central
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Texas_Central\012");
-                    break;
-                  case 32040: // PCS_NAD27_Texas_South_Cen
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Texas_South_Cen\012");
-                    break;
-                  case 32041: // PCS_NAD27_Texas_South
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Texas_South\012");
-                    break;
-                  case 32042: // PCS_NAD27_Utah_North
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Utah_North\012");
-                    break;
-                  case 32043: // PCS_NAD27_Utah_Central
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Utah_Central\012");
-                    break;
-                  case 32044: // PCS_NAD27_Utah_South
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Utah_South\012");
-                    break;
-                  case 32045: // PCS_NAD27_Vermont
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Vermont\012");
-                    break;
-                  case 32046: // PCS_NAD27_Virginia_North
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Virginia_North\012");
-                    break;
-                  case 32047: // PCS_NAD27_Virginia_South
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Virginia_South\012");
-                    break;
-                  case 32048: // PCS_NAD27_Washington_North
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Washington_North\012");
-                    break;
-                  case 32049: // PCS_NAD27_Washington_South
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Washington_South\012");
-                    break;
-                  case 32050: // PCS_NAD27_West_Virginia_N
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_West_Virginia_N\012");
-                    break;
-                  case 32051: // PCS_NAD27_West_Virginia_S
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_West_Virginia_S\012");
-                    break;
-                  case 32052: // PCS_NAD27_Wisconsin_North
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Wisconsin_North\012");
-                    break;
-                  case 32053: // PCS_NAD27_Wisconsin_Cen
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Wisconsin_Cen\012");
-                    break;
-                  case 32054: // PCS_NAD27_Wisconsin_South
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Wisconsin_South\012");
-                    break;
-                  case 32055: // PCS_NAD27_Wyoming_East
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Wyoming_East\012");
-                    break;
-                  case 32056: // PCS_NAD27_Wyoming_E_Cen
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Wyoming_E_Cen\012");
-                    break;
-                  case 32057: // PCS_NAD27_Wyoming_W_Cen
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Wyoming_W_Cen\012");
-                    break;
-                  case 32058: // PCS_NAD27_Wyoming_West
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Wyoming_West\012");
-                    break;
-                  case 32059: // PCS_NAD27_Puerto_Rico
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_Puerto_Rico\012");
-                    break;
-                  case 32060: // PCS_NAD27_St_Croix
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD27_St_Croix\012");
-                    break;
-                  case 32100: // PCS_NAD83_Montana
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Montana\012");
-                    break;
-                  case 32104: // PCS_NAD83_Nebraska
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Nebraska\012");
-                    break;
-                  case 32107: // PCS_NAD83_Nevada_East
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Nevada_East\012");
-                    break;
-                  case 32108: // PCS_NAD83_Nevada_Central
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Nevada_Central\012");
-                    break;
-                  case 32109: // PCS_NAD83_Nevada_West
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Nevada_West\012");
-                    break;
-                  case 32110: // PCS_NAD83_New_Hampshire
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_New_Hampshire\012");
-                    break;
-                  case 32111: // PCS_NAD83_New_Jersey
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_New_Jersey\012");
-                    break;
-                  case 32112: // PCS_NAD83_New_Mexico_East
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_New_Mexico_East\012");
-                    break;
-                  case 32113: // PCS_NAD83_New_Mexico_Cent
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_New_Mexico_Cent\012");
-                    break;
-                  case 32114: // PCS_NAD83_New_Mexico_West
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_New_Mexico_West\012");
-                    break;
-                  case 32115: // PCS_NAD83_New_York_East
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_New_York_East\012");
-                    break;
-                  case 32116: // PCS_NAD83_New_York_Central
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_New_York_Central\012");
-                    break;
-                  case 32117: // PCS_NAD83_New_York_West
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_New_York_West\012");
-                    break;
-                  case 32118: // PCS_NAD83_New_York_Long_Is
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_New_York_Long_Is\012");
-                    break;
-                  case 32119: // PCS_NAD83_North_Carolina
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_North_Carolina\012");
-                    break;
-                  case 32120: // PCS_NAD83_North_Dakota_N
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_North_Dakota_N\012");
-                    break;
-                  case 32121: // PCS_NAD83_North_Dakota_S
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_North_Dakota_S\012");
-                    break;
-                  case 32122: // PCS_NAD83_Ohio_North
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Ohio_North\012");
-                    break;
-                  case 32123: // PCS_NAD83_Ohio_South
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Ohio_South\012");
-                    break;
-                  case 32124: // PCS_NAD83_Oklahoma_North
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Oklahoma_North\012");
-                    break;
-                  case 32125: // PCS_NAD83_Oklahoma_South
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Oklahoma_South\012");
-                    break;
-                  case 32126: // PCS_NAD83_Oregon_North
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Oregon_North\012");
-                    break;
-                  case 32127: // PCS_NAD83_Oregon_South
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Oregon_South\012");
-                    break;
-                  case 32128: // PCS_NAD83_Pennsylvania_N
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Pennsylvania_N\012");
-                    break;
-                  case 32129: // PCS_NAD83_Pennsylvania_S
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Pennsylvania_S\012");
-                    break;
-                  case 32130: // PCS_NAD83_Rhode_Island
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Rhode_Island\012");
-                    break;
-                  case 32133: // PCS_NAD83_South_Carolina
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_South_Carolina\012");
-                    break;
-                  case 32134: // PCS_NAD83_South_Dakota_N
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_South_Dakota_N\012");
-                    break;
-                  case 32135: // PCS_NAD83_South_Dakota_S
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_South_Dakota_S\012");
-                    break;
-                  case 32136: // PCS_NAD83_Tennessee
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Tennessee\012");
-                    break;
-                  case 32137: // PCS_NAD83_Texas_North
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Texas_North\012");
-                    break;
-                  case 32138: // PCS_NAD83_Texas_North_Cen
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Texas_North_Cen\012");
-                    break;
-                  case 32139: // PCS_NAD83_Texas_Central
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Texas_Central\012");
-                    break;
-                  case 32140: // PCS_NAD83_Texas_South_Cen
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Texas_South_Cen\012");
-                    break;
-                  case 32141: // PCS_NAD83_Texas_South
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Texas_South\012");
-                    break;
-                  case 32142: // PCS_NAD83_Utah_North
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Utah_North\012");
-                    break;
-                  case 32143: // PCS_NAD83_Utah_Central
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Utah_Central\012");
-                    break;
-                  case 32144: // PCS_NAD83_Utah_South
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Utah_South\012");
-                    break;
-                  case 32145: // PCS_NAD83_Vermont
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Vermont\012");
-                    break;
-                  case 32146: // PCS_NAD83_Virginia_North
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Virginia_North\012");
-                    break;
-                  case 32147: // PCS_NAD83_Virginia_South
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Virginia_South\012");
-                    break;
-                  case 32148: // PCS_NAD83_Washington_North
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Washington_North\012");
-                    break;
-                  case 32149: // PCS_NAD83_Washington_South
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Washington_South\012");
-                    break;
-                  case 32150: // PCS_NAD83_West_Virginia_N
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_West_Virginia_N\012");
-                    break;
-                  case 32151: // PCS_NAD83_West_Virginia_S
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_West_Virginia_S\012");
-                    break;
-                  case 32152: // PCS_NAD83_Wisconsin_North
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Wisconsin_North\012");
-                    break;
-                  case 32153: // PCS_NAD83_Wisconsin_Cen
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Wisconsin_Cen\012");
-                    break;
-                  case 32154: // PCS_NAD83_Wisconsin_South
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Wisconsin_South\012");
-                    break;
-                  case 32155: // PCS_NAD83_Wyoming_East
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Wyoming_East\012");
-                    break;
-                  case 32156: // PCS_NAD83_Wyoming_E_Cen
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Wyoming_E_Cen\012");
-                    break;
-                  case 32157: // PCS_NAD83_Wyoming_W_Cen
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Wyoming_W_Cen\012");
-                    break;
-                  case 32158: // PCS_NAD83_Wyoming_West
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Wyoming_West\012");
-                    break;
-                  case 32161: // PCS_NAD83_Puerto_Rico_Virgin_Is
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_NAD83_Puerto_Rico_Virgin_Is\012");
-                    break;
-                  case 32201: // PCS_WGS72_UTM_zone_1N 
-                  case 32202: // PCS_WGS72_UTM_zone_2N 
-                  case 32203: // PCS_WGS72_UTM_zone_3N 
-                  case 32204: // PCS_WGS72_UTM_zone_4N 
-                  case 32205: // PCS_WGS72_UTM_zone_5N 
-                  case 32206: // PCS_WGS72_UTM_zone_6N 
-                  case 32207: // PCS_WGS72_UTM_zone_7N 
-                  case 32208:
-                  case 32209:
-                  case 32210:
-                  case 32211:
-                  case 32212:
-                  case 32213:
-                  case 32214:
-                  case 32215:
-                  case 32216:
-                  case 32217:
-                  case 32218:
-                  case 32219:
-                  case 32220:
-                  case 32221:
-                  case 32222:
-                  case 32223:
-                  case 32224:
-                  case 32225:
-                  case 32226:
-                  case 32227:
-                  case 32228:
-                  case 32229:
-                  case 32230:
-                  case 32231:
-                  case 32232:
-                  case 32233:
-                  case 32234:
-                  case 32235:
-                  case 32236:
-                  case 32237:
-                  case 32238:
-                  case 32239:
-                  case 32240:
-                  case 32241:
-                  case 32242:
-                  case 32243:
-                  case 32244:
-                  case 32245:
-                  case 32246:
-                  case 32247:
-                  case 32248:
-                  case 32249:
-                  case 32250:
-                  case 32251:
-                  case 32252:
-                  case 32253:
-                  case 32254:
-                  case 32255:
-                  case 32256:
-                  case 32257:
-                  case 32258:
-                  case 32259: // PCS_WGS72_UTM_zone_59N 
-                  case 32260: // PCS_WGS72_UTM_zone_60N 
-                    horizontal_units = 9001;
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_WGS72_UTM_zone_%dN\012", lasreader->header.vlr_geo_key_entries[j].value_offset-32200);
-                    break;
-                  case 32301: // PCS_WGS72_UTM_zone_1S
-                  case 32302: // PCS_WGS72_UTM_zone_2S
-                  case 32303: // PCS_WGS72_UTM_zone_3S
-                  case 32304: // PCS_WGS72_UTM_zone_4S
-                  case 32305: // PCS_WGS72_UTM_zone_5S
-                  case 32306: // PCS_WGS72_UTM_zone_6S
-                  case 32307: // PCS_WGS72_UTM_zone_7S
-                  case 32308:
-                  case 32309:
-                  case 32310:
-                  case 32311:
-                  case 32312:
-                  case 32313:
-                  case 32314:
-                  case 32315:
-                  case 32316:
-                  case 32317:
-                  case 32318:
-                  case 32319:
-                  case 32320:
-                  case 32321:
-                  case 32322:
-                  case 32323:
-                  case 32324:
-                  case 32325:
-                  case 32326:
-                  case 32327:
-                  case 32328:
-                  case 32329:
-                  case 32330:
-                  case 32331:
-                  case 32332:
-                  case 32333:
-                  case 32334:
-                  case 32335:
-                  case 32336:
-                  case 32337:
-                  case 32338:
-                  case 32339:
-                  case 32340:
-                  case 32341:
-                  case 32342:
-                  case 32343:
-                  case 32344:
-                  case 32345:
-                  case 32346:
-                  case 32347:
-                  case 32348:
-                  case 32349:
-                  case 32350:
-                  case 32351:
-                  case 32352:
-                  case 32353:
-                  case 32354:
-                  case 32355:
-                  case 32356:
-                  case 32357:
-                  case 32358:
-                  case 32359: // PCS_WGS72_UTM_zone_59S
-                  case 32360: // PCS_WGS72_UTM_zone_60S
-                    horizontal_units = 9001;
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_WGS72_UTM_zone_%dS\012", lasreader->header.vlr_geo_key_entries[j].value_offset-32300);
-                    break;
-                  case 32401: // PCS_WGS72BE_UTM_zone_1N
-                  case 32402: // PCS_WGS72BE_UTM_zone_2N
-                  case 32403: // PCS_WGS72BE_UTM_zone_3N
-                  case 32404: // PCS_WGS72BE_UTM_zone_4N
-                  case 32405: // PCS_WGS72BE_UTM_zone_5N
-                  case 32406: // PCS_WGS72BE_UTM_zone_6N
-                  case 32407: // PCS_WGS72BE_UTM_zone_7N
-                  case 32408:
-                  case 32409:
-                  case 32410:
-                  case 32411:
-                  case 32412:
-                  case 32413:
-                  case 32414:
-                  case 32415:
-                  case 32416:
-                  case 32417:
-                  case 32418:
-                  case 32419:
-                  case 32420:
-                  case 32421:
-                  case 32422:
-                  case 32423:
-                  case 32424:
-                  case 32425:
-                  case 32426:
-                  case 32427:
-                  case 32428:
-                  case 32429:
-                  case 32430:
-                  case 32431:
-                  case 32432:
-                  case 32433:
-                  case 32434:
-                  case 32435:
-                  case 32436:
-                  case 32437:
-                  case 32438:
-                  case 32439:
-                  case 32440:
-                  case 32441:
-                  case 32442:
-                  case 32443:
-                  case 32444:
-                  case 32445:
-                  case 32446:
-                  case 32447:
-                  case 32448:
-                  case 32449:
-                  case 32450:
-                  case 32451:
-                  case 32452:
-                  case 32453:
-                  case 32454:
-                  case 32455:
-                  case 32456:
-                  case 32457:
-                  case 32458:
-                  case 32459: // PCS_WGS72BE_UTM_zone_59N
-                  case 32460: // PCS_WGS72BE_UTM_zone_60N
-                    horizontal_units = 9001;
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_WGS72BE_UTM_zone_%dN\012", lasreader->header.vlr_geo_key_entries[j].value_offset-32400);
-                    break;
-                  case 32501: // PCS_WGS72BE_UTM_zone_1S
-                  case 32502: // PCS_WGS72BE_UTM_zone_2S
-                  case 32503: // PCS_WGS72BE_UTM_zone_3S
-                  case 32504: // PCS_WGS72BE_UTM_zone_4S
-                  case 32505: // PCS_WGS72BE_UTM_zone_5S
-                  case 32506: // PCS_WGS72BE_UTM_zone_6S
-                  case 32507: // PCS_WGS72BE_UTM_zone_7S
-                  case 32508:
-                  case 32509:
-                  case 32510:
-                  case 32511:
-                  case 32512:
-                  case 32513:
-                  case 32514:
-                  case 32515:
-                  case 32516:
-                  case 32517:
-                  case 32518:
-                  case 32519:
-                  case 32520:
-                  case 32521:
-                  case 32522:
-                  case 32523:
-                  case 32524:
-                  case 32525:
-                  case 32526:
-                  case 32527:
-                  case 32528:
-                  case 32529:
-                  case 32530:
-                  case 32531:
-                  case 32532:
-                  case 32533:
-                  case 32534:
-                  case 32535:
-                  case 32536:
-                  case 32537:
-                  case 32538:
-                  case 32539:
-                  case 32540:
-                  case 32541:
-                  case 32542:
-                  case 32543:
-                  case 32544:
-                  case 32545:
-                  case 32546:
-                  case 32547:
-                  case 32548:
-                  case 32549:
-                  case 32550:
-                  case 32551:
-                  case 32552:
-                  case 32553:
-                  case 32554:
-                  case 32555:
-                  case 32556:
-                  case 32557:
-                  case 32558:
-                  case 32559: // PCS_WGS72BE_UTM_zone_59S
-                  case 32560: // PCS_WGS72BE_UTM_zone_60S
-                    horizontal_units = 9001;
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_WGS72BE_UTM_zone_%dS\012", lasreader->header.vlr_geo_key_entries[j].value_offset-32500);
-                    break;
-                  case 32601: // PCS_WGS84_UTM_zone_1N
-                  case 32602: // PCS_WGS84_UTM_zone_2N
-                  case 32603: // PCS_WGS84_UTM_zone_3N
-                  case 32604: // PCS_WGS84_UTM_zone_4N
-                  case 32605: // PCS_WGS84_UTM_zone_5N
-                  case 32606: // PCS_WGS84_UTM_zone_6N
-                  case 32607: // PCS_WGS84_UTM_zone_7N
-                  case 32608:
-                  case 32609:
-                  case 32610:
-                  case 32611:
-                  case 32612:
-                  case 32613:
-                  case 32614:
-                  case 32615:
-                  case 32616:
-                  case 32617:
-                  case 32618:
-                  case 32619:
-                  case 32620:
-                  case 32621:
-                  case 32622:
-                  case 32623:
-                  case 32624:
-                  case 32625:
-                  case 32626:
-                  case 32627:
-                  case 32628:
-                  case 32629:
-                  case 32630:
-                  case 32631:
-                  case 32632:
-                  case 32633:
-                  case 32634:
-                  case 32635:
-                  case 32636:
-                  case 32637:
-                  case 32638:
-                  case 32639:
-                  case 32640:
-                  case 32641:
-                  case 32642:
-                  case 32643:
-                  case 32644:
-                  case 32645:
-                  case 32646:
-                  case 32647:
-                  case 32648:
-                  case 32649:
-                  case 32650:
-                  case 32651:
-                  case 32652:
-                  case 32653:
-                  case 32654:
-                  case 32655:
-                  case 32656:
-                  case 32657:
-                  case 32658:
-                  case 32659: // PCS_WGS84_UTM_zone_59N
-                  case 32660: // PCS_WGS84_UTM_zone_60N
-                    horizontal_units = 9001;
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_WGS84_UTM_zone_%dN\012", lasreader->header.vlr_geo_key_entries[j].value_offset-32600);
-                    break;
-                  case 32701: // PCS_WGS84_UTM_zone_1S
-                  case 32702: // PCS_WGS84_UTM_zone_2S
-                  case 32703: // PCS_WGS84_UTM_zone_3S
-                  case 32704: // PCS_WGS84_UTM_zone_4S
-                  case 32705: // PCS_WGS84_UTM_zone_5S
-                  case 32706: // PCS_WGS84_UTM_zone_6S
-                  case 32707: // PCS_WGS84_UTM_zone_7S
-                  case 32708:
-                  case 32709:
-                  case 32710:
-                  case 32711:
-                  case 32712:
-                  case 32713:
-                  case 32714:
-                  case 32715:
-                  case 32716:
-                  case 32717:
-                  case 32718:
-                  case 32719:
-                  case 32720:
-                  case 32721:
-                  case 32722:
-                  case 32723:
-                  case 32724:
-                  case 32725:
-                  case 32726:
-                  case 32727:
-                  case 32728:
-                  case 32729:
-                  case 32730:
-                  case 32731:
-                  case 32732:
-                  case 32733:
-                  case 32734:
-                  case 32735:
-                  case 32736:
-                  case 32737:
-                  case 32738:
-                  case 32739:
-                  case 32740:
-                  case 32741:
-                  case 32742:
-                  case 32743:
-                  case 32744:
-                  case 32745:
-                  case 32746:
-                  case 32747:
-                  case 32748:
-                  case 32749:
-                  case 32750:
-                  case 32751:
-                  case 32752:
-                  case 32753:
-                  case 32754:
-                  case 32755:
-                  case 32756:
-                  case 32757:
-                  case 32758:
-                  case 32759: // PCS_WGS84_UTM_zone_59S
-                  case 32760: // PCS_WGS84_UTM_zone_60S
-                    horizontal_units = 9001;
-                    fprintf(file_out, "ProjectedCSTypeGeoKey: PCS_WGS84_UTM_zone_%dS\012", lasreader->header.vlr_geo_key_entries[j].value_offset-32700);
-                    break;
-                  default:
+                    horizontal_units = geoprojectionconverter.get_ProjLinearUnitsGeoKey();
+                    fprintf(file_out, "ProjectedCSTypeGeoKey: %s\012", printstring);
+                    break;
+                  }
+                  else
+                  {
                     fprintf(file_out, "ProjectedCSTypeGeoKey: look-up for %d not implemented\012", lasreader->header.vlr_geo_key_entries[j].value_offset);
                   }
                   break;
@@ -4172,7 +2761,14 @@ int main(int argc, char *argv[])
             fprintf(file_out, "      ");
             for (int j = 0; j < lasreader->header.vlrs[i].record_length_after_header; j++)
             {
-              fprintf(file_out, "%c", lasheader->vlr_geo_ascii_params[j]);
+              if (lasheader->vlr_geo_ascii_params[j] >= ' ')
+              {
+                fprintf(file_out, "%c", lasheader->vlr_geo_ascii_params[j]);
+              }
+              else
+              {
+                fprintf(file_out, " ");
+              }
             }
             fprintf(file_out, "\012");
           }
@@ -4205,7 +2801,14 @@ int main(int argc, char *argv[])
             fprintf(file_out, "    ");
             for (int j = 0; j < lasheader->vlrs[i].record_length_after_header; j++)
             {
-              fprintf(file_out, "%c", lasheader->vlrs[i].data[j]);
+              if (lasheader->vlrs[i].data[j] != '\0')
+              {
+                fprintf(file_out, "%c", lasheader->vlrs[i].data[j]);
+              }
+              else
+              {
+                fprintf(file_out, " ");
+              }
             }
             fprintf(file_out, "\012");
           }
@@ -4260,7 +2863,6 @@ int main(int argc, char *argv[])
                       }
                     }
                   }
-                  if (lasheader->vlrs[i].data[j+3] & 0x08) fprintf(file_out, ", scale: %g", ((F64*)(lasheader->vlrs[i].data + j + 112))[0]);
                   if (lasheader->vlrs[i].data[j+3] & 0x08) // if scale is set
                   {
                     fprintf(file_out, ", scale:");
@@ -4269,6 +2871,10 @@ int main(int argc, char *argv[])
                       fprintf(file_out, " %g", ((F64*)(lasheader->vlrs[i].data + j + 112))[k]);
                     }
                   }
+                  else
+                  {
+                    fprintf(file_out, ", scale: 1 (not set)");
+                  }
                   if (lasheader->vlrs[i].data[j+3] & 0x10) // if offset is set
                   {
                     fprintf(file_out, ", offset:");
@@ -4276,6 +2882,10 @@ int main(int argc, char *argv[])
                     {
                       fprintf(file_out, " %g", ((F64*)(lasheader->vlrs[i].data + j + 136))[k]);
                     }
+                  }
+                  else
+                  {
+                    fprintf(file_out, ", offset: 0 (not set)");
                   }
                   fprintf(file_out, "\012");
                 }
@@ -4385,8 +2995,14 @@ int main(int argc, char *argv[])
 
       if (file_out && !no_min_max) fprintf(file_out, "reporting minimum and maximum for all LAS point record entries ...\012");
 
+      // maybe seek to start position
+
+      if (subsequence_start) lasreader->seek(subsequence_start);
+
       while (lasreader->read_point())
       {
+        if (lasreader->p_count > subsequence_stop) break;
+
         if (check_outside)
         {
           if (!lasreader->point.inside_bounding_box(enlarged_min_x, enlarged_min_y, enlarged_min_z, enlarged_max_x, enlarged_max_y, enlarged_max_z))
@@ -4394,7 +3010,7 @@ int main(int argc, char *argv[])
             outside_bounding_box++;
             if (file_out && report_outside)
             {
-              fprintf(file_out, "%u t %g x %g y %g z %g (%d of %d) i %d c %d s %d %u p %d d %d e %d\012", (U32)(lasreader->p_count-1), lasreader->point.gps_time, lasreader->point.get_x(), lasreader->point.get_y(), lasreader->point.get_z(), lasreader->point.return_number, lasreader->point.number_of_returns_of_given_pulse, lasreader->point.intensity, lasreader->point.classification, lasreader->point.scan_angle_rank, lasreader->point.user_data, lasreader->point.point_source_ID, lasreader->point.scan_direction_flag, lasreader->point.edge_of_flight_line);
+              fprintf(file_out, "%u t %g x %g y %g z %g i %d (%d of %d) d %d e %d c %d s %d %u p %d \012", (U32)(lasreader->p_count-1), lasreader->point.get_gps_time(), lasreader->point.get_x(), lasreader->point.get_y(), lasreader->point.get_z(), lasreader->point.get_intensity(), lasreader->point.get_return_number(), lasreader->point.get_number_of_returns(), lasreader->point.get_scan_direction_flag(), lasreader->point.get_edge_of_flight_line(), lasreader->point.get_classification(), lasreader->point.get_scan_angle_rank(), lasreader->point.get_user_data(), lasreader->point.get_point_source_ID());
             }
           }
         }
@@ -4406,7 +3022,7 @@ int main(int argc, char *argv[])
           lasoccupancygrid->add(&lasreader->point);
         }
 
-        if (lasreader->point.return_number >= lasreader->point.number_of_returns_of_given_pulse)
+        if (lasreader->point.get_return_number() >= lasreader->point.get_number_of_returns())
         {
           num_last_returns++;
         }
@@ -4430,18 +3046,18 @@ int main(int argc, char *argv[])
       }
       if (file_out && !no_min_max)
       {
-        fprintf(file_out, "  X %10d %10d\012",lassummary.min.x, lassummary.max.x);
-        fprintf(file_out, "  Y %10d %10d\012",lassummary.min.y, lassummary.max.y);
-        fprintf(file_out, "  Z %10d %10d\012",lassummary.min.z, lassummary.max.z);
-        fprintf(file_out, "  intensity %d %d\012",lassummary.min.intensity, lassummary.max.intensity);
-        fprintf(file_out, "  edge_of_flight_line %d %d\012",lassummary.min.edge_of_flight_line, lassummary.max.edge_of_flight_line);
-        fprintf(file_out, "  scan_direction_flag %d %d\012",lassummary.min.scan_direction_flag, lassummary.max.scan_direction_flag);
-        fprintf(file_out, "  number_of_returns_of_given_pulse %d %d\012",lassummary.min.number_of_returns_of_given_pulse, lassummary.max.number_of_returns_of_given_pulse);
-        fprintf(file_out, "  return_number                    %d %d\012",lassummary.min.return_number, lassummary.max.return_number);
-        fprintf(file_out, "  classification  %5d %5d\012",lassummary.min.classification, lassummary.max.classification);
-        fprintf(file_out, "  scan_angle_rank %5d %5d\012",lassummary.min.scan_angle_rank, lassummary.max.scan_angle_rank);
-        fprintf(file_out, "  user_data       %5d %5d\012",lassummary.min.user_data, lassummary.max.user_data);
-        fprintf(file_out, "  point_source_ID %5d %5d\012",lassummary.min.point_source_ID, lassummary.max.point_source_ID);
+        fprintf(file_out, "  X          %10d %10d\012",lassummary.min.get_X(), lassummary.max.get_X());
+        fprintf(file_out, "  Y          %10d %10d\012",lassummary.min.get_Y(), lassummary.max.get_Y());
+        fprintf(file_out, "  Z          %10d %10d\012",lassummary.min.get_Z(), lassummary.max.get_Z());
+        fprintf(file_out, "  intensity  %10d %10d\012",lassummary.min.intensity, lassummary.max.intensity);
+        fprintf(file_out, "  return_number       %d %10d\012",lassummary.min.return_number, lassummary.max.return_number);
+        fprintf(file_out, "  number_of_returns   %d %10d\012",lassummary.min.number_of_returns, lassummary.max.number_of_returns);
+        fprintf(file_out, "  edge_of_flight_line %d %10d\012",lassummary.min.edge_of_flight_line, lassummary.max.edge_of_flight_line);
+        fprintf(file_out, "  scan_direction_flag %d %10d\012",lassummary.min.scan_direction_flag, lassummary.max.scan_direction_flag);
+        fprintf(file_out, "  classification  %5d %10d\012",lassummary.min.classification, lassummary.max.classification);
+        fprintf(file_out, "  scan_angle_rank %5d %10d\012",lassummary.min.scan_angle_rank, lassummary.max.scan_angle_rank);
+        fprintf(file_out, "  user_data       %5d %10d\012",lassummary.min.user_data, lassummary.max.user_data);
+        fprintf(file_out, "  point_source_ID %5d %10d\012",lassummary.min.point_source_ID, lassummary.max.point_source_ID);
         if (lasreader->point.have_gps_time)
         {
           fprintf(file_out, "  gps_time %f %f\012",lassummary.min.gps_time, lassummary.max.gps_time);
@@ -4488,7 +3104,7 @@ int main(int argc, char *argv[])
         }
         if (lasreader->point.extended_point_type)
         {
-          fprintf(file_out, "  extended_number_of_returns_of_given_pulse %d %d\012",lassummary.min.extended_number_of_returns_of_given_pulse, lassummary.max.extended_number_of_returns_of_given_pulse);
+          fprintf(file_out, "  extended_number_of_returns %d %d\012",lassummary.min.extended_number_of_returns, lassummary.max.extended_number_of_returns);
           fprintf(file_out, "  extended_return_number                    %d %d\012",lassummary.min.extended_return_number, lassummary.max.extended_return_number);
           fprintf(file_out, "  extended_classification  %6d %6d\012",lassummary.min.extended_classification, lassummary.max.extended_classification);
           fprintf(file_out, "  extended_scan_angle      %6.3f %6.3f\012",0.006*lassummary.min.extended_scan_angle, 0.006*lassummary.max.extended_scan_angle);
@@ -4510,6 +3126,18 @@ int main(int argc, char *argv[])
 #else
         fprintf(file_out, "WARNING: %lld points outside of header bounding box\012", outside_bounding_box);
 #endif
+      }
+      if (file_out && lassummary.has_fluff())
+      {
+        fprintf(file_out, "WARNING: there is coordinate resolution fluff (x10) in %s%s%s\012", (lassummary.has_fluff(0) ? "X" : ""), (lassummary.has_fluff(1) ? "Y" : ""), (lassummary.has_fluff(2) ? "Z" : ""));
+        if (lassummary.has_serious_fluff())
+        {
+          fprintf(file_out, "WARNING: there is serious coordinate resolution fluff (x100) in %s%s%s\012", (lassummary.has_serious_fluff(0) ? "X" : ""), (lassummary.has_serious_fluff(1) ? "Y" : ""), (lassummary.has_serious_fluff(2) ? "Z" : ""));
+          if (lassummary.has_very_serious_fluff())
+          {
+            fprintf(file_out, "WARNING: there is very serious coordinate resolution fluff (x1000) in %s%s%s\012", (lassummary.has_very_serious_fluff(0) ? "X" : ""), (lassummary.has_very_serious_fluff(1) ? "Y" : ""), (lassummary.has_very_serious_fluff(2) ? "Z" : ""));
+          }
+        }
       }
       if (lashistogram.active())
       {
@@ -4590,11 +3218,11 @@ int main(int argc, char *argv[])
 
     if (change_header)
     {
-      if (set_file_source_id != -1)
+      if (set_file_source_ID != -1)
       {
-        U16 file_source_id = U16_CLAMP(set_file_source_id);
+        U16 file_source_ID = U16_CLAMP(set_file_source_ID);
         fseek(file, 4, SEEK_SET);
-        fwrite(&file_source_id, sizeof(U16), 1, file);
+        fwrite(&file_source_ID, sizeof(U16), 1, file);
       }
       if (set_global_encoding != -1)
       {
@@ -4828,22 +3456,22 @@ int main(int argc, char *argv[])
 #endif
 
         wrong_entry = false;
-        for (i = 1; i < 8; i++) if (lassummary.number_of_returns_of_given_pulse[i]) wrong_entry = true;
+        for (i = 1; i < 8; i++) if (lassummary.number_of_returns[i]) wrong_entry = true;
         if (wrong_entry)
         {
           fprintf(file_out, "overview over number of returns of given pulse:"); 
 #ifdef _WIN32
-          for (i = 1; i < 8; i++) fprintf(file_out, " %I64d", lassummary.number_of_returns_of_given_pulse[i]);
+          for (i = 1; i < 8; i++) fprintf(file_out, " %I64d", lassummary.number_of_returns[i]);
 #else
-          for (i = 1; i < 8; i++) fprintf(file_out, " %lld", lassummary.number_of_returns_of_given_pulse[i]);
+          for (i = 1; i < 8; i++) fprintf(file_out, " %lld", lassummary.number_of_returns[i]);
 #endif
           fprintf(file_out, "\n"); 
         }
 
 #ifdef _WIN32
-        if (lassummary.number_of_returns_of_given_pulse[0]) fprintf(file_out, "WARNING: there are %I64d points with a number of returns of given pulse of 0\n", lassummary.number_of_returns_of_given_pulse[0]); 
+        if (lassummary.number_of_returns[0]) fprintf(file_out, "WARNING: there are %I64d points with a number of returns of given pulse of 0\n", lassummary.number_of_returns[0]); 
 #else
-        if (lassummary.number_of_returns_of_given_pulse[0]) fprintf(file_out, "WARNING: there are %lld points with a number of returns of given pulse of 0\n", lassummary.number_of_returns_of_given_pulse[0]); 
+        if (lassummary.number_of_returns[0]) fprintf(file_out, "WARNING: there are %lld points with a number of returns of given pulse of 0\n", lassummary.number_of_returns[0]); 
 #endif
 
         wrong_entry = false;
@@ -4871,21 +3499,21 @@ int main(int argc, char *argv[])
       if (repair_bb)
       {
         wrong_entry = false;
-        if (lasheader->get_x(lassummary.max.x) != lasheader->max_x) wrong_entry = true;
-        if (lasheader->get_x(lassummary.min.x) != lasheader->min_x) wrong_entry = true;
-        if (lasheader->get_y(lassummary.max.y) != lasheader->max_y) wrong_entry = true;
-        if (lasheader->get_y(lassummary.min.y) != lasheader->min_y) wrong_entry = true;
-        if (lasheader->get_z(lassummary.max.z) != lasheader->max_z) wrong_entry = true;
-        if (lasheader->get_z(lassummary.min.z) != lasheader->min_z) wrong_entry = true;
+        if (lasheader->get_x(lassummary.max.get_X()) != lasheader->max_x) wrong_entry = true;
+        if (lasheader->get_x(lassummary.min.get_X()) != lasheader->min_x) wrong_entry = true;
+        if (lasheader->get_y(lassummary.max.get_Y()) != lasheader->max_y) wrong_entry = true;
+        if (lasheader->get_y(lassummary.min.get_Y()) != lasheader->min_y) wrong_entry = true;
+        if (lasheader->get_z(lassummary.max.get_Z()) != lasheader->max_z) wrong_entry = true;
+        if (lasheader->get_z(lassummary.min.get_Z()) != lasheader->min_z) wrong_entry = true;
         if (wrong_entry)
         {
           fseek(file, 179, SEEK_SET);
-          value = lasheader->get_x(lassummary.max.x); fwrite(&value, sizeof(double), 1, file);
-          value = lasheader->get_x(lassummary.min.x); fwrite(&value, sizeof(double), 1, file);
-          value = lasheader->get_y(lassummary.max.y); fwrite(&value, sizeof(double), 1, file);
-          value = lasheader->get_y(lassummary.min.y); fwrite(&value, sizeof(double), 1, file);
-          value = lasheader->get_z(lassummary.max.z); fwrite(&value, sizeof(double), 1, file);
-          value = lasheader->get_z(lassummary.min.z); fwrite(&value, sizeof(double), 1, file);
+          value = lasheader->get_x(lassummary.max.get_X()); fwrite(&value, sizeof(double), 1, file);
+          value = lasheader->get_x(lassummary.min.get_X()); fwrite(&value, sizeof(double), 1, file);
+          value = lasheader->get_y(lassummary.max.get_Y()); fwrite(&value, sizeof(double), 1, file);
+          value = lasheader->get_y(lassummary.min.get_Y()); fwrite(&value, sizeof(double), 1, file);
+          value = lasheader->get_z(lassummary.max.get_Z()); fwrite(&value, sizeof(double), 1, file);
+          value = lasheader->get_z(lassummary.min.get_Z()); fwrite(&value, sizeof(double), 1, file);
           if (file_out) fprintf(file_out, "bounding box was repaired.\n");
         }
         else
@@ -4895,32 +3523,32 @@ int main(int argc, char *argv[])
       }
       else
       {
-        value = lasheader->get_x(lassummary.max.x);
+        value = lasheader->get_x(lassummary.max.get_X());
         if (value > enlarged_max_x)
         {
           if (file_out) fprintf(file_out, "real max x larger than header max x by %lf\n", value - lasheader->max_x);
         }
-        value = lasheader->get_x(lassummary.min.x);
+        value = lasheader->get_x(lassummary.min.get_X());
         if (value < enlarged_min_x)
         {
           if (file_out) fprintf(file_out, "real min x smaller than header min x by %lf\n", lasheader->min_x - value);
         }
-        value = lasheader->get_y(lassummary.max.y);
+        value = lasheader->get_y(lassummary.max.get_Y());
         if (value > enlarged_max_y)
         {
           if (file_out) fprintf(file_out, "real max y larger than header max y by %lf\n", value - lasheader->max_y);
         }
-        value = lasheader->get_y(lassummary.min.y);
+        value = lasheader->get_y(lassummary.min.get_Y());
         if (value < enlarged_min_y)
         {
           if (file_out) fprintf(file_out, "real min y smaller than header min y by %lf\n", lasheader->min_y - value);
         }
-        value = lasheader->get_z(lassummary.max.z);
+        value = lasheader->get_z(lassummary.max.get_Z());
         if (value > enlarged_max_z)
         {
           if (file_out) fprintf(file_out, "real max z larger than header max z by %lf\n", value - lasheader->max_z);
         }
-        value = lasheader->get_z(lassummary.min.z);
+        value = lasheader->get_z(lassummary.min.get_Z());
         if (value < enlarged_min_z)
         {
           if (file_out) fprintf(file_out, "real min z smaller than header min z by %lf\n", lasheader->min_z - value);
@@ -4941,7 +3569,7 @@ int main(int argc, char *argv[])
   if (set_offset) delete [] set_offset;
   if (set_scale) delete [] set_scale;
 
-  byebye(false, argc==1);
+  byebye(false, wait || (argc==1));
 
   return 0;
 }

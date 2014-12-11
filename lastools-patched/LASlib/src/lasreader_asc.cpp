@@ -13,11 +13,11 @@
 
   COPYRIGHT:
 
-    (c) 2007-2012, martin isenburg, rapidlasso - fast tools to catch reality
+    (c) 2007-2014, martin isenburg, rapidlasso - fast tools to catch reality
 
     This is free software; you can redistribute and/or modify it under the
     terms of the GNU Lesser General Licence as published by the Free Software
-    Foundation except for (R). See the LICENSE.txt file for more information.
+    Foundation. See the LICENSE.txt file for more information.
 
     This software is distributed WITHOUT ANY WARRANTY and without even the
     implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
@@ -39,7 +39,7 @@
 
 extern "C" FILE* fopen_compressed(const char* filename, const char* mode, bool* piped);
 
-BOOL LASreaderASC::open(const char* file_name)
+BOOL LASreaderASC::open(const char* file_name, BOOL comma_not_point)
 {
   if (file_name == 0)
   {
@@ -48,6 +48,7 @@ BOOL LASreaderASC::open(const char* file_name)
   }
 
   clean();
+  this->comma_not_point = comma_not_point;
 
   file = fopen_compressed(file_name, "r", &piped);
   if (file == 0)
@@ -62,7 +63,7 @@ BOOL LASreaderASC::open(const char* file_name)
 
   // populate the header as much as it makes sense
 
-  sprintf(header.system_identifier, "LAStools (c) by Martin Isenburg");
+  sprintf(header.system_identifier, "LAStools (c) by rapidlasso GmbH");
   sprintf(header.generating_software, "via LASreaderASC (%d)", LAS_TOOLS_VERSION);
 
   // maybe set creation date
@@ -113,9 +114,20 @@ BOOL LASreaderASC::open(const char* file_name)
   {
     if (!fgets(line, line_size, file)) break;
 
+    // special handling for European numbers
+
+    if (comma_not_point)
+    {
+      I32 i, len = strlen(line);
+      for (i = 0; i < len; i++)
+      {
+        if (line[i] == ',') line[i] = '.';
+      }
+    }
+
     if (strstr(line, "ncols") || strstr(line, "NCOLS"))
     {
-      sscanf(line, "ncols %d", &ncols);
+      sscanf(line, "%s %d", dummy, &ncols);
       free(line);
       line_size = 1024+16*ncols;
       line = (CHAR*)malloc(sizeof(CHAR)*line_size);
@@ -148,7 +160,7 @@ BOOL LASreaderASC::open(const char* file_name)
     {
       sscanf(line, "%s %f", dummy, &nodata);
     }
-    else if ((ncols != 0) && (nrows != 0) && (((xllcorner != F64_MAX) && (yllcorner != F64_MAX)) || ((xllcenter != F64_MAX) && (xllcenter != F64_MAX))) && (cellsize > 0))
+    else if ((ncols != 0) && (nrows != 0) && (((xllcorner != F64_MAX) && (yllcorner != F64_MAX)) || ((xllcenter != F64_MAX) && (yllcenter != F64_MAX))) && (cellsize > 0))
     {
       if (ncols == 1)
       {
@@ -222,17 +234,46 @@ BOOL LASreaderASC::open(const char* file_name)
   header.min_z = F64_MAX;
   header.max_z = F64_MIN;
 
+  // skip leading spaces
+  line_curr = 0;
+  while ((line[line_curr] != '\0') && (line[line_curr] <= ' ')) line_curr++;
+
   for (row = 0; row < nrows; row++)
   {
-    line_curr = 0;
     for (col = 0; col < ncols; col++)
     {
-      // skip leading spaces
-      while ((line[line_curr] != '\0') && (line[line_curr] == ' ')) line_curr++;
+      if (line[line_curr] == '\0')
+      {
+        if (!fgets(line, line_size, file))
+        {
+#ifdef _WIN32
+          fprintf(stderr,"WARNING: end-of-file after %d of %d rows and %d of %d cols. read %I64d points\n", row, nrows, col, ncols, p_count);
+#else
+          fprintf(stderr,"WARNING: end-of-file after %d of %d rows and %d of %d cols. read %lld points\n", row, nrows, col, ncols, p_count);
+#endif
+        }
+
+        // special handling for European numbers
+
+        if (comma_not_point)
+        {
+          I32 i, len = strlen(line);
+          for (i = 0; i < len; i++)
+          {
+            if (line[i] == ',') line[i] = '.';
+          }
+        }
+
+        // skip leading spaces
+        line_curr = 0;
+        while ((line[line_curr] != '\0') && (line[line_curr] <= ' ')) line_curr++;
+      }
       // get elevation value
       sscanf(&(line[line_curr]), "%f", &elevation);
       // skip parsed number
-      while ((line[line_curr] != '\0') && (line[line_curr] != ' ')) line_curr++;
+      while ((line[line_curr] != '\0') && (line[line_curr] > ' ')) line_curr++;
+      // skip following spaces
+      while ((line[line_curr] != '\0') && (line[line_curr] <= ' ')) line_curr++;
       // should we use the raster
       if (elevation != nodata)
       {
@@ -241,31 +282,32 @@ BOOL LASreaderASC::open(const char* file_name)
         if (header.min_z > elevation) header.min_z = elevation;
       }
     }
-    if (!fgets(line, line_size, file)) break;
   }
 
-  // close the file
+  // close the ASC file
 
   close();
 
   // check the header values
 
-  if ((header.min_z == F64_MAX) || (header.max_z == F64_MIN))
+  header.number_of_point_records = (U32)npoints;
+
+  if (npoints)
   {
-    fprintf(stderr,"WARNING: raster contains only no data\n");
+    // populate scale and offset
+
+    populate_scale_and_offset();
+
+    // check bounding box for this scale and offset
+
+    populate_bounding_box();
+  }
+  else
+  {
+    fprintf(stderr,"WARNING: ASC raster contains only no data values\n");
     header.min_z = 0;
     header.max_z = 0;
   }
-
-  header.number_of_point_records = (U32)npoints;
-
-  // populate scale and offset
-
-  populate_scale_and_offset();
-
-  // check bounding box for this scale and offset
-
-  populate_bounding_box();
 
   // reopen
 
@@ -314,7 +356,7 @@ BOOL LASreaderASC::read_point_default()
   F32 elevation;
   while (p_count < npoints)
   {
-    if (col == ncols)
+    if (line[line_curr] == '\0')
     {
       if (!fgets(line, line_size, file))
       {
@@ -326,16 +368,32 @@ BOOL LASreaderASC::read_point_default()
         npoints = p_count;
         return FALSE;
       }
+
+      // special handling for European numbers
+
+      if (comma_not_point)
+      {
+        I32 i, len = strlen(line);
+        for (i = 0; i < len; i++)
+        {
+          if (line[i] == ',') line[i] = '.';
+        }
+      }
       line_curr = 0;
+      // skip leading spaces
+      while ((line[line_curr] != '\0') && (line[line_curr] <= ' ')) line_curr++;
+    }
+    if (col == ncols)
+    {
       col = 0;
       row++;
     }
-    // skip leading spaces
-    while ((line[line_curr] != '\0') && (line[line_curr] == ' ')) line_curr++;
     // get elevation value
     sscanf(&(line[line_curr]), "%f", &elevation);
     // skip parsed number
-    while ((line[line_curr] != '\0') && (line[line_curr] != ' ')) line_curr++;
+    while ((line[line_curr] != '\0') && (line[line_curr] > ' ')) line_curr++;
+    // skip following spaces
+    while ((line[line_curr] != '\0') && (line[line_curr] <= ' ')) line_curr++;
     // should we use the raster
     if (elevation != nodata)
     {
@@ -393,10 +451,24 @@ BOOL LASreaderASC::reopen(const char* file_name)
     fgets(line, line_size, file);
   }
 
+  // special handling for European numbers
+
+  if (comma_not_point)
+  {
+    I32 i, len = strlen(line);
+    for (i = 0; i < len; i++)
+    {
+      if (line[i] == ',') line[i] = '.';
+    }
+  }
+
   col = 0;
   row = 0;
-  line_curr = 0;
   p_count = 0;
+
+  // skip leading spaces
+  line_curr = 0;
+  while ((line[line_curr] != '\0') && (line[line_curr] <= ' ')) line_curr++;
 
   return TRUE;
 }
@@ -417,6 +489,7 @@ void LASreaderASC::clean()
   line_size = 0;
   line_curr = 0;
   piped = false;
+  comma_not_point = FALSE;
   col = 0;
   ncols = 0;
   nrows = 0;
@@ -504,19 +577,19 @@ void LASreaderASC::populate_bounding_box()
 {
   // compute quantized and then unquantized bounding box
 
-  F64 dequant_min_x = header.get_x(header.get_x(header.min_x));
-  F64 dequant_max_x = header.get_x(header.get_x(header.max_x));
-  F64 dequant_min_y = header.get_y(header.get_y(header.min_y));
-  F64 dequant_max_y = header.get_y(header.get_y(header.max_y));
-  F64 dequant_min_z = header.get_z(header.get_z(header.min_z));
-  F64 dequant_max_z = header.get_z(header.get_z(header.max_z));
+  F64 dequant_min_x = header.get_x(header.get_X(header.min_x));
+  F64 dequant_max_x = header.get_x(header.get_X(header.max_x));
+  F64 dequant_min_y = header.get_y(header.get_Y(header.min_y));
+  F64 dequant_max_y = header.get_y(header.get_Y(header.max_y));
+  F64 dequant_min_z = header.get_z(header.get_Z(header.min_z));
+  F64 dequant_max_z = header.get_z(header.get_Z(header.max_z));
 
   // make sure there is not sign flip
 
   if ((header.min_x > 0) != (dequant_min_x > 0))
   {
     fprintf(stderr, "WARNING: quantization sign flip for min_x from %g to %g.\n", header.min_x, dequant_min_x);
-    fprintf(stderr, "         set scale factor for x coarser than %g with '-scale'\n", header.x_scale_factor);
+    fprintf(stderr, "         set scale factor for x coarser than %g with '-rescale'\n", header.x_scale_factor);
   }
   else
   {
@@ -525,7 +598,7 @@ void LASreaderASC::populate_bounding_box()
   if ((header.max_x > 0) != (dequant_max_x > 0))
   {
     fprintf(stderr, "WARNING: quantization sign flip for max_x from %g to %g.\n", header.max_x, dequant_max_x);
-    fprintf(stderr, "         set scale factor for x coarser than %g with '-scale'\n", header.x_scale_factor);
+    fprintf(stderr, "         set scale factor for x coarser than %g with '-rescale'\n", header.x_scale_factor);
   }
   else
   {
@@ -534,7 +607,7 @@ void LASreaderASC::populate_bounding_box()
   if ((header.min_y > 0) != (dequant_min_y > 0))
   {
     fprintf(stderr, "WARNING: quantization sign flip for min_y from %g to %g.\n", header.min_y, dequant_min_y);
-    fprintf(stderr, "         set scale factor for y coarser than %g with '-scale'\n", header.y_scale_factor);
+    fprintf(stderr, "         set scale factor for y coarser than %g with '-rescale'\n", header.y_scale_factor);
   }
   else
   {
@@ -543,7 +616,7 @@ void LASreaderASC::populate_bounding_box()
   if ((header.max_y > 0) != (dequant_max_y > 0))
   {
     fprintf(stderr, "WARNING: quantization sign flip for max_y from %g to %g.\n", header.max_y, dequant_max_y);
-    fprintf(stderr, "         set scale factor for y coarser than %g with '-scale'\n", header.y_scale_factor);
+    fprintf(stderr, "         set scale factor for y coarser than %g with '-rescale'\n", header.y_scale_factor);
   }
   else
   {
@@ -552,7 +625,7 @@ void LASreaderASC::populate_bounding_box()
   if ((header.min_z > 0) != (dequant_min_z > 0))
   {
     fprintf(stderr, "WARNING: quantization sign flip for min_z from %g to %g.\n", header.min_z, dequant_min_z);
-    fprintf(stderr, "         set scale factor for z coarser than %g with '-scale'\n", header.z_scale_factor);
+    fprintf(stderr, "         set scale factor for z coarser than %g with '-rescale'\n", header.z_scale_factor);
   }
   else
   {
@@ -561,7 +634,7 @@ void LASreaderASC::populate_bounding_box()
   if ((header.max_z > 0) != (dequant_max_z > 0))
   {
     fprintf(stderr, "WARNING: quantization sign flip for max_z from %g to %g.\n", header.max_z, dequant_max_z);
-    fprintf(stderr, "         set scale factor for z coarser than %g with '-scale'\n", header.z_scale_factor);
+    fprintf(stderr, "         set scale factor for z coarser than %g with '-rescale'\n", header.z_scale_factor);
   }
   else
   {

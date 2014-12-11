@@ -17,7 +17,7 @@
 
     This is free software; you can redistribute and/or modify it under the
     terms of the GNU Lesser General Licence as published by the Free Software
-    Foundation except for (R). See the LICENSE.txt file for more information.
+    Foundation. See the LICENSE.txt file for more information.
 
     This software is distributed WITHOUT ANY WARRANTY and without even the
     implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
@@ -39,9 +39,9 @@ LASinventory::LASinventory()
   U32 i;
   number_of_point_records = 0;
   for (i = 0; i < 8; i++) number_of_points_by_return[i] = 0;
-  raw_max_x = raw_min_x = 0;
-  raw_max_y = raw_min_y = 0;
-  raw_max_z = raw_min_z = 0;
+  max_X = min_X = 0;
+  max_Y = min_Y = 0;
+  max_Z = min_Z = 0;
   first = TRUE;
 }
 
@@ -51,19 +51,19 @@ BOOL LASinventory::add(const LASpoint* point)
   number_of_points_by_return[point->return_number]++;
   if (first)
   {
-    raw_min_x = raw_max_x = point->x;
-    raw_min_y = raw_max_y = point->y;
-    raw_min_z = raw_max_z = point->z;
+    min_X = max_X = point->get_X();
+    min_Y = max_Y = point->get_Y();
+    min_Z = max_Z = point->get_Z();
     first = FALSE;
   }
   else
   {
-    if (point->x < raw_min_x) raw_min_x = point->x;
-    else if (point->x > raw_max_x) raw_max_x = point->x;
-    if (point->y < raw_min_y) raw_min_y = point->y;
-    else if (point->y > raw_max_y) raw_max_y = point->y;
-    if (point->z < raw_min_z) raw_min_z = point->z;
-    else if (point->z > raw_max_z) raw_max_z = point->z;
+    if (point->get_X() < min_X) min_X = point->get_X();
+    else if (point->get_X() > max_X) max_X = point->get_X();
+    if (point->get_Y() < min_Y) min_Y = point->get_Y();
+    else if (point->get_Y() > max_Y) max_Y = point->get_Y();
+    if (point->get_Z() < min_Z) min_Z = point->get_Z();
+    else if (point->get_Z() > max_Z) max_Z = point->get_Z();
   }
   return TRUE;
 }
@@ -73,8 +73,14 @@ LASsummary::LASsummary()
   U32 i;
   number_of_point_records = 0;
   for (i = 0; i < 16; i++) number_of_points_by_return[i] = 0;
-  for (i = 0; i < 16; i++) number_of_returns_of_given_pulse[i] = 0;
+  for (i = 0; i < 16; i++) number_of_returns[i] = 0;
   for (i = 0; i < 256; i++) classification[i] = 0;
+  for (i = 0; i < 3; i++)
+  {
+    xyz_fluff_10[i] = 0;
+    xyz_fluff_100[i] = 0;
+    xyz_fluff_1000[i] = 0;
+  }
   classification_synthetic = 0;
   classification_keypoint = 0;
   classification_withheld = 0;
@@ -85,12 +91,12 @@ LASsummary::LASsummary()
 BOOL LASsummary::add(const LASpoint* point)
 {
   number_of_point_records++;
-  number_of_points_by_return[point->return_number]++;
-  number_of_returns_of_given_pulse[point->number_of_returns_of_given_pulse]++;
-  classification[point->classification&31]++;
-  if (point->classification & 32) classification_synthetic++;
-  if (point->classification & 64) classification_keypoint++;
-  if (point->classification & 128) classification_withheld++;
+  number_of_points_by_return[point->get_return_number()]++;
+  number_of_returns[point->get_number_of_returns()]++;
+  classification[point->get_classification()]++;
+  if (point->get_synthetic_flag()) classification_synthetic++;
+  if (point->get_keypoint_flag()) classification_keypoint++;
+  if (point->get_withheld_flag()) classification_withheld++;
   if (first)
   {
     min = *point;
@@ -99,20 +105,20 @@ BOOL LASsummary::add(const LASpoint* point)
   }
   else
   {
-    if (point->x < min.x) min.x = point->x;
-    else if (point->x > max.x) max.x = point->x;
-    if (point->y < min.y) min.y = point->y;
-    else if (point->y > max.y) max.y = point->y;
-    if (point->z < min.z) min.z = point->z;
-    else if (point->z > max.z) max.z = point->z;
+    if (point->get_X() < min.get_X()) min.set_X(point->get_X());
+    else if (point->get_X() > max.get_X()) max.set_X(point->get_X());
+    if (point->get_Y() < min.get_Y()) min.set_Y(point->get_Y());
+    else if (point->get_Y() > max.get_Y()) max.set_Y(point->get_Y());
+    if (point->get_Z() < min.get_Z()) min.set_Z(point->get_Z());
+    else if (point->get_Z() > max.get_Z()) max.set_Z(point->get_Z());
     if (point->intensity < min.intensity) min.intensity = point->intensity;
     else if (point->intensity > max.intensity) max.intensity = point->intensity;
     if (point->edge_of_flight_line < min.edge_of_flight_line) min.edge_of_flight_line = point->edge_of_flight_line;
     else if (point->edge_of_flight_line > max.edge_of_flight_line) max.edge_of_flight_line = point->edge_of_flight_line;
     if (point->scan_direction_flag < min.scan_direction_flag) min.scan_direction_flag = point->scan_direction_flag;
     else if (point->scan_direction_flag > max.scan_direction_flag) max.scan_direction_flag = point->scan_direction_flag;
-    if (point->number_of_returns_of_given_pulse < min.number_of_returns_of_given_pulse) min.number_of_returns_of_given_pulse = point->number_of_returns_of_given_pulse;
-    else if (point->number_of_returns_of_given_pulse > max.number_of_returns_of_given_pulse) max.number_of_returns_of_given_pulse = point->number_of_returns_of_given_pulse;
+    if (point->number_of_returns < min.number_of_returns) min.number_of_returns = point->number_of_returns;
+    else if (point->number_of_returns > max.number_of_returns) max.number_of_returns = point->number_of_returns;
     if (point->return_number < min.return_number) min.return_number = point->return_number;
     else if (point->return_number > max.return_number) max.return_number = point->return_number;
     if (point->classification < min.classification) min.classification = point->classification;
@@ -143,8 +149,8 @@ BOOL LASsummary::add(const LASpoint* point)
       else if (point->extended_classification > max.extended_classification) max.extended_classification = point->extended_classification;
       if (point->extended_return_number < min.extended_return_number) min.extended_return_number = point->extended_return_number;
       else if (point->extended_return_number > max.extended_return_number) max.extended_return_number = point->extended_return_number;
-      if (point->extended_number_of_returns_of_given_pulse < min.extended_number_of_returns_of_given_pulse) min.extended_number_of_returns_of_given_pulse = point->extended_number_of_returns_of_given_pulse;
-      else if (point->extended_number_of_returns_of_given_pulse > max.extended_number_of_returns_of_given_pulse) max.extended_number_of_returns_of_given_pulse = point->extended_number_of_returns_of_given_pulse;
+      if (point->extended_number_of_returns < min.extended_number_of_returns) min.extended_number_of_returns = point->extended_number_of_returns;
+      else if (point->extended_number_of_returns > max.extended_number_of_returns) max.extended_number_of_returns = point->extended_number_of_returns;
       if (point->extended_scan_angle < min.extended_scan_angle) min.extended_scan_angle = point->extended_scan_angle;
       else if (point->extended_scan_angle > max.extended_scan_angle) max.extended_scan_angle = point->extended_scan_angle;
       if (point->extended_scanner_channel < min.extended_scanner_channel) min.extended_scanner_channel = point->extended_scanner_channel;
@@ -171,6 +177,42 @@ BOOL LASsummary::add(const LASpoint* point)
       else if (point->wavepacket.getYt() > max.wavepacket.getYt()) max.wavepacket.setYt(point->wavepacket.getYt());
       if (point->wavepacket.getZt() < min.wavepacket.getZt()) min.wavepacket.setZt(point->wavepacket.getZt());
       else if (point->wavepacket.getZt() > max.wavepacket.getZt()) max.wavepacket.setZt(point->wavepacket.getZt());
+    }
+  }
+  if ((point->get_X()%10) == 0)
+  {
+    xyz_fluff_10[0]++;
+    if ((point->get_X()%100) == 0)
+    {
+      xyz_fluff_100[0]++;
+      if ((point->get_X()%1000) == 0)
+      {
+        xyz_fluff_1000[0]++;
+      }
+    }
+  }
+  if ((point->get_Y()%10) == 0)
+  {
+    xyz_fluff_10[1]++;
+    if ((point->get_Y()%100) == 0)
+    {
+      xyz_fluff_100[1]++;
+      if ((point->get_Y()%1000) == 0)
+      {
+        xyz_fluff_1000[1]++;
+      }
+    }
+  }
+  if ((point->get_Z()%10) == 0)
+  {
+    xyz_fluff_10[2]++;
+    if ((point->get_Z()%100) == 0)
+    {
+      xyz_fluff_100[2]++;
+      if ((point->get_Z()%1000) == 0)
+      {
+        xyz_fluff_1000[2]++;
+      }
     }
   }
   return TRUE;
@@ -245,12 +287,22 @@ void LASbin::add_to_bin(I32 bin)
       {
         size_pos = bin + 1024;
         bins_pos = (U32*)malloc(sizeof(U32)*size_pos);
+        if (bins_pos == 0)
+        {
+          fprintf(stderr, "ERROR: allocating %u pos bins\012", size_pos);
+          exit(1);
+        }
         for (i = 0; i < size_pos; i++) bins_pos[i] = 0;
       }
       else
       {
         I32 new_size = bin + 1024;
         bins_pos = (U32*)realloc(bins_pos, sizeof(U32)*new_size);
+        if (bins_pos == 0)
+        {
+          fprintf(stderr, "ERROR: reallocating %u pos bins\012", new_size);
+          exit(1);
+        }
         for (i = size_pos; i < new_size; i++) bins_pos[i] = 0;
         size_pos = new_size;
       }
@@ -267,12 +319,22 @@ void LASbin::add_to_bin(I32 bin)
       {
         size_neg = bin + 1024;
         bins_neg = (U32*)malloc(sizeof(U32)*size_neg);
+        if (bins_neg == 0)
+        {
+          fprintf(stderr, "ERROR: allocating %u neg bins\012", size_neg);
+          exit(1);
+        }
         for (i = 0; i < size_neg; i++) bins_neg[i] = 0;
       }
       else
       {
         I32 new_size = bin + 1024;
         bins_neg = (U32*)realloc(bins_neg, sizeof(U32)*new_size);
+        if (bins_neg == 0)
+        {
+          fprintf(stderr, "ERROR: reallocating %u neg bins\012", new_size);
+          exit(1);
+        }
         for (i = size_neg; i < new_size; i++) bins_neg[i] = 0;
         size_neg = new_size;
       }
@@ -301,6 +363,16 @@ void LASbin::add(I32 item, I32 value)
       {
         size_pos = 1024;
         bins_pos = (U32*)malloc(sizeof(U32)*size_pos);
+        if (bins_pos == 0)
+        {
+          fprintf(stderr, "ERROR: allocating %u pos bins\012", size_pos);
+          exit(1);
+        }
+        if (values_pos == 0)
+        {
+          fprintf(stderr, "ERROR: allocating %u pos values\012", size_pos);
+          exit(1);
+        }
         values_pos = (F64*)malloc(sizeof(F64)*size_pos);
         for (i = 0; i < size_pos; i++) { bins_pos[i] = 0; values_pos[i] = 0; }
       }
@@ -309,6 +381,16 @@ void LASbin::add(I32 item, I32 value)
         I32 new_size = bin + 1024;
         bins_pos = (U32*)realloc(bins_pos, sizeof(U32)*new_size);
         values_pos = (F64*)realloc(values_pos, sizeof(F64)*new_size);
+        if (bins_pos == 0)
+        {
+          fprintf(stderr, "ERROR: reallocating %u pos bins\012", new_size);
+          exit(1);
+        }
+        if (values_pos == 0)
+        {
+          fprintf(stderr, "ERROR: reallocating %u pos values\012", new_size);
+          exit(1);
+        }
         for (i = size_pos; i < new_size; i++) { bins_pos[i] = 0; values_pos[i] = 0; }
         size_pos = new_size;
       }
@@ -327,6 +409,16 @@ void LASbin::add(I32 item, I32 value)
         size_neg = 1024;
         bins_neg = (U32*)malloc(sizeof(U32)*size_neg);
         values_neg = (F64*)malloc(sizeof(F64)*size_neg);
+        if (bins_neg == 0)
+        {
+          fprintf(stderr, "ERROR: allocating %u neg bins\012", size_neg);
+          exit(1);
+        }
+        if (values_neg == 0)
+        {
+          fprintf(stderr, "ERROR: allocating %u neg values\012", size_neg);
+          exit(1);
+        }
         for (i = 0; i < size_neg; i++) { bins_neg[i] = 0; values_neg[i] = 0; }
       }
       else
@@ -334,6 +426,16 @@ void LASbin::add(I32 item, I32 value)
         I32 new_size = bin + 1024;
         bins_neg = (U32*)realloc(bins_neg, sizeof(U32)*new_size);
         values_neg = (F64*)realloc(values_neg, sizeof(F64)*new_size);
+        if (bins_neg == 0)
+        {
+          fprintf(stderr, "ERROR: reallocating %u neg bins\012", new_size);
+          exit(1);
+        }
+        if (values_neg == 0)
+        {
+          fprintf(stderr, "ERROR: reallocating %u neg values\012", new_size);
+          exit(1);
+        }
         for (i = size_neg; i < new_size; i++) { bins_neg[i] = 0; values_neg[i] = 0; }
         size_neg = new_size;
       }
@@ -457,6 +559,12 @@ LAShistogram::LAShistogram()
   R_bin = 0;
   G_bin = 0;
   B_bin = 0;
+  I_bin = 0;
+  attribute0_bin = 0;
+  attribute1_bin = 0;
+  attribute2_bin = 0;
+  attribute3_bin = 0;
+  attribute4_bin = 0;
   wavepacket_index_bin = 0;
   wavepacket_offset_bin = 0;
   wavepacket_size_bin = 0;
@@ -488,6 +596,12 @@ LAShistogram::~LAShistogram()
   if (R_bin) delete R_bin;
   if (G_bin) delete G_bin;
   if (B_bin) delete B_bin;
+  if (I_bin) delete I_bin;
+  if (attribute0_bin) delete attribute0_bin;
+  if (attribute1_bin) delete attribute1_bin;
+  if (attribute2_bin) delete attribute2_bin;
+  if (attribute3_bin) delete attribute3_bin;
+  if (attribute4_bin) delete attribute4_bin;
   if (wavepacket_index_bin) delete wavepacket_index_bin;
   if (wavepacket_offset_bin) delete wavepacket_offset_bin;
   if (wavepacket_size_bin) delete wavepacket_size_bin;
@@ -556,6 +670,12 @@ I32 LAShistogram::unparse(CHAR* string) const
   if (R_bin) n += sprintf(&string[n], "-histo R %g ", R_bin->get_step());
   if (G_bin) n += sprintf(&string[n], "-histo G %g ", G_bin->get_step());
   if (B_bin) n += sprintf(&string[n], "-histo B %g ", B_bin->get_step());
+  if (I_bin) n += sprintf(&string[n], "-histo I %g ", I_bin->get_step());
+  if (attribute0_bin) n += sprintf(&string[n], "-histo 0 %g ", attribute0_bin->get_step());
+  if (attribute1_bin) n += sprintf(&string[n], "-histo 1 %g ", attribute1_bin->get_step());
+  if (attribute2_bin) n += sprintf(&string[n], "-histo 2 %g ", attribute2_bin->get_step());
+  if (attribute3_bin) n += sprintf(&string[n], "-histo 3 %g ", attribute3_bin->get_step());
+  if (attribute4_bin) n += sprintf(&string[n], "-histo 4 %g ", attribute4_bin->get_step());
   if (wavepacket_index_bin) n += sprintf(&string[n], "-histo wavepacket_index %g ", wavepacket_index_bin->get_step());
   if (wavepacket_offset_bin) n += sprintf(&string[n], "-histo wavepacket_offset %g ", wavepacket_offset_bin->get_step());
   if (wavepacket_size_bin) n += sprintf(&string[n], "-histo wavepacket_size %g ", wavepacket_size_bin->get_step());
@@ -595,6 +715,18 @@ BOOL LAShistogram::histo(const CHAR* name, F32 step)
     G_bin = new LASbin(step);
   else if (strcmp(name, "B") == 0)
     B_bin = new LASbin(step);
+  else if (strcmp(name, "I") == 0)
+    I_bin = new LASbin(step);
+  else if (strcmp(name, "0") == 0)
+    attribute0_bin = new LASbin(step);
+  else if (strcmp(name, "1") == 0)
+    attribute1_bin = new LASbin(step);
+  else if (strcmp(name, "2") == 0)
+    attribute2_bin = new LASbin(step);
+  else if (strcmp(name, "3") == 0)
+    attribute3_bin = new LASbin(step);
+  else if (strcmp(name, "4") == 0)
+    attribute4_bin = new LASbin(step);
   else if (strstr(name, "wavepacket_index") != 0)
     wavepacket_index_bin = new LASbin(step);
   else if (strstr(name, "wavepacket_offset") != 0)
@@ -665,9 +797,9 @@ void LAShistogram::add(const LASpoint* point)
   if (x_bin) x_bin->add(point->get_x());
   if (y_bin) y_bin->add(point->get_y());
   if (z_bin) z_bin->add(point->get_z());
-  if (X_bin) X_bin->add(point->x);
-  if (Y_bin) Y_bin->add(point->y);
-  if (Z_bin) Z_bin->add(point->z);
+  if (X_bin) X_bin->add(point->get_X());
+  if (Y_bin) Y_bin->add(point->get_Y());
+  if (Z_bin) Z_bin->add(point->get_Z());
   if (intensity_bin) intensity_bin->add(point->intensity);
   if (classification_bin) classification_bin->add(point->classification);
   if (scan_angle_bin) scan_angle_bin->add(point->scan_angle_rank);
@@ -677,6 +809,12 @@ void LAShistogram::add(const LASpoint* point)
   if (R_bin) R_bin->add(point->rgb[0]);
   if (G_bin) G_bin->add(point->rgb[1]);
   if (B_bin) B_bin->add(point->rgb[2]);
+  if (I_bin) I_bin->add(point->rgb[3]);
+  if (attribute0_bin) attribute0_bin->add(point->get_attribute_as_float(0));
+  if (attribute1_bin) attribute1_bin->add(point->get_attribute_as_float(1));
+  if (attribute2_bin) attribute2_bin->add(point->get_attribute_as_float(2));
+  if (attribute3_bin) attribute3_bin->add(point->get_attribute_as_float(3));
+  if (attribute4_bin) attribute4_bin->add(point->get_attribute_as_float(4));
   if (wavepacket_index_bin) wavepacket_index_bin->add(point->wavepacket.getIndex());
   if (wavepacket_offset_bin) wavepacket_offset_bin->add((I64)point->wavepacket.getOffset());
   if (wavepacket_size_bin) wavepacket_size_bin->add((I32)point->wavepacket.getSize());
@@ -684,12 +822,12 @@ void LAShistogram::add(const LASpoint* point)
   // averages bins
   if (classification_bin_intensity) classification_bin_intensity->add(point->classification, point->intensity);
   if (classification_bin_scan_angle) classification_bin_scan_angle->add(point->classification, point->scan_angle_rank);
-  if (scan_angle_bin_z) scan_angle_bin_z->add(point->scan_angle_rank, point->z);
-  if (scan_angle_bin_number_of_returns) scan_angle_bin_number_of_returns->add(point->scan_angle_rank, point->number_of_returns_of_given_pulse);
+  if (scan_angle_bin_z) scan_angle_bin_z->add(point->scan_angle_rank, point->get_Z());
+  if (scan_angle_bin_number_of_returns) scan_angle_bin_number_of_returns->add(point->scan_angle_rank, point->number_of_returns);
   if (scan_angle_bin_intensity) scan_angle_bin_intensity->add(point->scan_angle_rank, point->intensity);
   if (return_map_bin_intensity)
   {
-    int n = point->number_of_returns_of_given_pulse;
+    int n = point->number_of_returns;
     int r = point->return_number;
     return_map_bin_intensity->add((n == 1 ? 0 : (n == 2 ? r : (n == 3 ? r+2 : (n == 4 ? r+5 : (n == 5 ? r+9 : 15))))), point->intensity);
   }
@@ -713,6 +851,12 @@ void LAShistogram::report(FILE* file) const
   if (R_bin) R_bin->report(file, "color R channel");
   if (G_bin) G_bin->report(file, "color G channel");
   if (B_bin) B_bin->report(file, "color B channel");
+  if (I_bin) I_bin->report(file, "color I channel");
+  if (attribute0_bin) attribute0_bin->report(file, "attribute 0");
+  if (attribute1_bin) attribute1_bin->report(file, "attribute 1");
+  if (attribute2_bin) attribute2_bin->report(file, "attribute 2");
+  if (attribute3_bin) attribute3_bin->report(file, "attribute 3");
+  if (attribute4_bin) attribute4_bin->report(file, "attribute 4");
   if (wavepacket_index_bin) wavepacket_index_bin->report(file, "wavepacket_index");
   if (wavepacket_offset_bin) wavepacket_offset_bin->report(file, "wavepacket_offset");
   if (wavepacket_size_bin) wavepacket_size_bin->report(file, "wavepacket_size");
@@ -744,6 +888,12 @@ void LAShistogram::reset()
   if (R_bin) R_bin->reset();
   if (G_bin) G_bin->reset();
   if (B_bin) B_bin->reset();
+  if (I_bin) I_bin->reset();
+  if (attribute0_bin) attribute0_bin->reset();
+  if (attribute1_bin) attribute1_bin->reset();
+  if (attribute2_bin) attribute2_bin->reset();
+  if (attribute3_bin) attribute3_bin->reset();
+  if (attribute4_bin) attribute4_bin->reset();
   if (wavepacket_index_bin) wavepacket_index_bin->reset();
   if (wavepacket_offset_bin) wavepacket_offset_bin->reset();
   if (wavepacket_size_bin) wavepacket_size_bin->reset();

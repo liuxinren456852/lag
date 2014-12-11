@@ -29,7 +29,7 @@
  
   The output defaults to stdout if no output file is specified.
 
-  Please license from martin.isenburg@gmail.com to use lascontrol
+  Please license from martin.isenburg@rapidlasso.com to use lascontrol
   commercially.
 
   For updates check the website or join the LAStools mailing list.
@@ -90,18 +90,24 @@ for more info:
 
 C:\lastools\bin>lascontrol -h
 Filter points based on their coordinates.
-  -clip_tile 631000 4834000 1000 (ll_x ll_y size)
-  -clip_circle 630250.00 4834750.00 100 (x y radius)
-  -clip_box 620000 4830000 100 621000 4831000 200 (min_x min_y min_z max_x max_y max_z)
-  -clip 630000 4834000 631000 4836000 (min_x min_y max_x max_y)
-  -clip_x_below 630000.50 (min_x)
-  -clip_y_below 4834500.25 (min_y)
-  -clip_x_above 630500.50 (max_x)
-  -clip_y_above 4836000.75 (max_y)
-  -clip_z 11.125 130.725 (min_z max_z)
-  -clip_z_below 11.125 (min_z)
-  -clip_z_above 130.725 (max_z)
-  -clip_z_between 11.125 130.725 (min_z max_z)
+  -keep_tile 631000 4834000 1000 (ll_x ll_y size)
+  -keep_circle 630250.00 4834750.00 100 (x y radius)
+  -keep_xy 630000 4834000 631000 4836000 (min_x min_y max_x max_y)
+  -drop_xy 630000 4834000 631000 4836000 (min_x min_y max_x max_y)
+  -keep_x 631500.50 631501.00 (min_x max_x)
+  -drop_x 631500.50 631501.00 (min_x max_x)
+  -drop_x_below 630000.50 (min_x)
+  -drop_x_above 630500.50 (max_x)
+  -keep_y 4834500.25 4834550.25 (min_y max_y)
+  -drop_y 4834500.25 4834550.25 (min_y max_y)
+  -drop_y_below 4834500.25 (min_y)
+  -drop_y_above 4836000.75 (max_y)
+  -keep_z 11.125 130.725 (min_z max_z)
+  -drop_z 11.125 130.725 (min_z max_z)
+  -drop_z_below 11.125 (min_z)
+  -drop_z_above 130.725 (max_z)
+  -keep_xyz 620000 4830000 100 621000 4831000 200 (min_x min_y min_z max_x max_y max_z)
+  -drop_xyz 620000 4830000 100 621000 4831000 200 (min_x min_y min_z max_x max_y max_z)
 Filter points based on their return number.
   -first_only -keep_first -drop_first
   -last_only -keep_last -drop_last
@@ -154,8 +160,8 @@ Filter points based on their gps time.
   -drop_gps_time_above 130.725
   -drop_gps_time_between 22.0 48.0
 Filter points based on their wavepacket.
-  -keep_wavepacket 1 2
-  -drop_wavepacket 0
+  -keep_wavepacket 0
+  -drop_wavepacket 3
 Filter points with simple thinning.
   -keep_every_nth 2
   -keep_random_fraction 0.1
@@ -176,6 +182,8 @@ Transform intensity.
   -scale_intensity 2.5
   -translate_intensity 50
   -translate_then_scale_intensity 0.5 3.1
+  -clamp_intensity 0 255
+  -clamp_intensity_above 255
 Transform scan_angle.
   -scale_scan_angle 1.944445
   -translate_scan_angle -5
@@ -189,12 +197,18 @@ Change the return number or return count of points.
 Modify the classification.
   -set_classification 2
   -change_classification_from_to 2 4
+  -classify_z_below_as -5.0 7
+  -classify_z_above_as 70.0 7
+  -classify_z_between_as 2.0 5.0 4
+  -classify_intensity_above_as 200 9
+  -classify_intensity_below_as 30 11
 Modify the user data.
   -set_user_data 0
   -change_user_data_from_to 23 26
 Modify the point source ID.
   -set_point_source 500
   -change_point_source_from_to 1023 1024
+  -quantize_Z_into_point_source 200
 Transform gps_time.
   -translate_gps_time 40.50
   -adjusted_to_week
@@ -219,7 +233,7 @@ Supported LAS Inputs
   -rescale_xy 0.01 0.01
   -rescale_z 0.01
   -reoffset 600000 4000000 0
-LAStools (by martin@rapidlasso.com) version 130712 (academic)
+LAStools (by martin@rapidlasso.com) version 140301 (unlicensed)
 usage:
 lascontrol -i lidar.las -cp cp.txt -keep_class 2
 lascontrol -i lidar.las -cp cp.csv -keep_class 2 8 -parse sxyz -step 2

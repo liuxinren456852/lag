@@ -17,7 +17,7 @@
 
     This is free software; you can redistribute and/or modify it under the
     terms of the GNU Lesser General Licence as published by the Free Software
-    Foundation except for (R). See the LICENSE.txt file for more information.
+    Foundation. See the LICENSE.txt file for more information.
 
     This software is distributed WITHOUT ANY WARRANTY and without even the
     implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
@@ -143,10 +143,10 @@ BOOL LASwriterQFIT::open(ByteStreamOut* stream, const LASheader* header, I32 ver
 
   // check whether these attributes are available
 
-  scan_azimuth_array_offset = header->get_extra_attribute_array_offset("scan azimuth");
-  pitch_array_offset = header->get_extra_attribute_array_offset("pitch");
-  roll_array_offset = header->get_extra_attribute_array_offset("roll");
-  pulse_width_array_offset = header->get_extra_attribute_array_offset("pulse width");
+  scan_azimuth_array_offset = header->get_attribute_start("scan azimuth");
+  pitch_array_offset = header->get_attribute_start("pitch");
+  roll_array_offset = header->get_attribute_start("roll");
+  pulse_width_array_offset = header->get_attribute_start("pulse width");
 
   if (version == 0)
   {
@@ -232,18 +232,18 @@ BOOL LASwriterQFIT::write_point(const LASpoint* point)
   }
   else
   {
-    buffer[2] = point->x;
-    buffer[1] = point->y;
-    buffer[3] = point->z;
+    buffer[2] = point->get_X();
+    buffer[1] = point->get_Y();
+    buffer[3] = point->get_Z();
   }
   if (buffer[2] < 0) buffer[2] += 360000000; //  convert negative longitude to LARGE east
   buffer[5] = point->intensity;
   buffer[6] = I32_QUANTIZE(point->scan_angle_rank/0.001);
 
-  if (scan_azimuth_array_offset > -1) point->get_extra_attribute(scan_azimuth_array_offset, buffer[6]);
-  if (pitch_array_offset > -1) point->get_extra_attribute(pitch_array_offset, buffer[7]);
-  if (roll_array_offset > -1) point->get_extra_attribute(roll_array_offset, buffer[8]);
-  if (pulse_width_array_offset > -1) { U8 pulse_width; point->get_extra_attribute(pulse_width_array_offset, pulse_width); buffer[10] = pulse_width; };
+  if (scan_azimuth_array_offset > -1) point->get_attribute(scan_azimuth_array_offset, buffer[6]);
+  if (pitch_array_offset > -1) point->get_attribute(pitch_array_offset, buffer[7]);
+  if (roll_array_offset > -1) point->get_attribute(roll_array_offset, buffer[8]);
+  if (pulse_width_array_offset > -1) { U8 pulse_width; point->get_attribute(pulse_width_array_offset, pulse_width); buffer[10] = pulse_width; };
 
   if (endian_swap)
   {

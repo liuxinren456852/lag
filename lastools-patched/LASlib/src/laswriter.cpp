@@ -13,11 +13,11 @@
 
   COPYRIGHT:
 
-    (c) 2007-2012, martin isenburg, rapidlasso - fast tools to catch reality
+    (c) 2007-2013, martin isenburg, rapidlasso - fast tools to catch reality
 
     This is free software; you can redistribute and/or modify it under the
     terms of the GNU Lesser General Licence as published by the Free Software
-    Foundation except for (R). See the LICENSE.txt file for more information.
+    Foundation. See the LICENSE.txt file for more information.
 
     This software is distributed WITHOUT ANY WARRANTY and without even the
     implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
@@ -55,7 +55,7 @@ LASwriter* LASwriteOpener::open(LASheader* header)
   if (use_nil)
   {
     LASwriterLAS* laswriterlas = new LASwriterLAS();
-    if (!laswriterlas->open(header, (format == LAS_TOOLS_FORMAT_LAZ ? (use_chunking ?  LASZIP_COMPRESSOR_CHUNKED : LASZIP_COMPRESSOR_NOT_CHUNKED) : LASZIP_COMPRESSOR_NONE), (use_v1 ? 1 : 2), chunk_size))
+    if (!laswriterlas->open(header, (format == LAS_TOOLS_FORMAT_LAZ ? (use_chunking ?  LASZIP_COMPRESSOR_CHUNKED : LASZIP_COMPRESSOR_NOT_CHUNKED) : LASZIP_COMPRESSOR_NONE), 2, chunk_size))
     {
       fprintf(stderr,"ERROR: cannot open laswriterlas to NULL\n");
       delete laswriterlas;
@@ -68,7 +68,7 @@ LASwriter* LASwriteOpener::open(LASheader* header)
     if (format <= LAS_TOOLS_FORMAT_LAZ)
     {
       LASwriterLAS* laswriterlas = new LASwriterLAS();
-      if (!laswriterlas->open(file_name, header, (format == LAS_TOOLS_FORMAT_LAZ ? (use_chunking ? LASZIP_COMPRESSOR_CHUNKED : LASZIP_COMPRESSOR_NOT_CHUNKED) : LASZIP_COMPRESSOR_NONE), (use_v1 ? 1 : 2), chunk_size))
+      if (!laswriterlas->open(file_name, header, (format == LAS_TOOLS_FORMAT_LAZ ? (use_chunking ? LASZIP_COMPRESSOR_CHUNKED : LASZIP_COMPRESSOR_NOT_CHUNKED) : LASZIP_COMPRESSOR_NONE), 2, chunk_size, io_obuffer_size))
       {
         fprintf(stderr,"ERROR: cannot open laswriterlas with file name '%s'\n", file_name);
         delete laswriterlas;
@@ -134,7 +134,7 @@ LASwriter* LASwriteOpener::open(LASheader* header)
     if (format <= LAS_TOOLS_FORMAT_LAZ)
     {
       LASwriterLAS* laswriterlas = new LASwriterLAS();
-      if (!laswriterlas->open(stdout, header, (format == LAS_TOOLS_FORMAT_LAZ ? (use_chunking ? LASZIP_COMPRESSOR_CHUNKED : LASZIP_COMPRESSOR_NOT_CHUNKED) : LASZIP_COMPRESSOR_NONE), (use_v1 ? 1 : 2), chunk_size))
+      if (!laswriterlas->open(stdout, header, (format == LAS_TOOLS_FORMAT_LAZ ? (use_chunking ? LASZIP_COMPRESSOR_CHUNKED : LASZIP_COMPRESSOR_NOT_CHUNKED) : LASZIP_COMPRESSOR_NONE), 2, chunk_size))
       {
         fprintf(stderr,"ERROR: cannot open laswriterlas to stdout\n");
         delete laswriterlas;
@@ -241,7 +241,7 @@ BOOL LASwriteOpener::parse(int argc, char* argv[])
     {
       continue;
     }
-    else if (strcmp(argv[i],"-h") == 0 || strcmp(argv[i],"-help") == 0)
+    else if (strcmp(argv[i],"-h") == 0)
     {
       usage();
       return TRUE;
@@ -339,23 +339,6 @@ BOOL LASwriteOpener::parse(int argc, char* argv[])
       use_stdout = FALSE;
       *argv[i]='\0';
     }
-    else if (strcmp(argv[i],"-buffered") == 0)
-    {
-      buffered = TRUE;
-      *argv[i]='\0';
-    }
-    else if (strcmp(argv[i],"-v1") == 0)
-    {
-      use_v1 = TRUE;
-      use_chunking = FALSE;
-      *argv[i]='\0';
-    }
-    else if (strcmp(argv[i],"-v2") == 0)
-    {
-      use_v1 = FALSE;
-      use_chunking = TRUE;
-      *argv[i]='\0';
-    }
     else if (strcmp(argv[i],"-no_chunk") == 0)
     {
       use_chunking = FALSE;
@@ -373,8 +356,7 @@ BOOL LASwriteOpener::parse(int argc, char* argv[])
         fprintf(stderr,"ERROR: '%s' needs 1 argument: number_points\n", argv[i]);
         return FALSE;
       }
-      use_chunking = TRUE;
-      chunk_size = atoi(argv[i+1]);
+      set_chunk_size(atoi(argv[i+1]));
       *argv[i]='\0'; *argv[i+1]='\0'; i+=1;
     }
     else if (strcmp(argv[i],"-oparse") == 0)
@@ -417,8 +399,23 @@ BOOL LASwriteOpener::parse(int argc, char* argv[])
       optx = TRUE;
       *argv[i]='\0';
     }
+    else if (strcmp(argv[i],"-io_obuffer") == 0)
+    {
+      if ((i+1) >= argc)
+      {
+        fprintf(stderr,"ERROR: '%s' needs 1 argument: size\n", argv[i]);
+        return FALSE;
+      }
+      set_io_obuffer_size((I32)atoi(argv[i+1]));
+      *argv[i]='\0'; *argv[i+1]='\0'; i+=1;
+    }
   }
   return TRUE;
+}
+
+void LASwriteOpener::set_io_obuffer_size(I32 io_obuffer_size)
+{
+  this->io_obuffer_size = io_obuffer_size;
 }
 
 void LASwriteOpener::set_directory(const CHAR* directory)
@@ -426,16 +423,16 @@ void LASwriteOpener::set_directory(const CHAR* directory)
   if (this->directory) free(this->directory);
   if (directory)
   {
-    if (strstr(directory, ";"))
+    if (strstr(directory, ";") || strstr(directory, "\""))
     {
-      fprintf(stderr,"WARNING: specified '-odir' seems to contain a substring \\\" such\n");
+      fprintf(stderr,"WARNING: specified '-odir' seems to contain a substring '\\\"' such\n");
       fprintf(stderr,"         as -odir \"D:\\\" or -odir \"..\\tiles\\\". this command will\n");
       fprintf(stderr,"         probably fail. please use -odir \"D:\" or -odir \"..\\tiles\"\n");
       fprintf(stderr,"         instead.\n");
     }
     this->directory = strdup(directory);
     int len = strlen(this->directory);
-    if (len && (this->directory[len-1] == DIRECTORY_SLASH))
+    if ((len > 0) && ((this->directory[len-1] == '\\') || (this->directory[len-1] == '/') || (this->directory[len-1] == ':')))
     {
       this->directory[len-1] = '\0';
     }
@@ -620,6 +617,12 @@ void LASwriteOpener::set_force(BOOL force)
   this->force = force;
 }
 
+void LASwriteOpener::set_chunk_size(U32 chunk_size)
+{
+  this->use_chunking = TRUE;
+  this->chunk_size = chunk_size;
+}
+
 void LASwriteOpener::make_numbered_file_name(const CHAR* file_name, I32 digits)
 {
   int len;
@@ -640,7 +643,11 @@ void LASwriteOpener::make_numbered_file_name(const CHAR* file_name, I32 digits)
   {
     len--;
   }
-  len++;
+  if (len > 0)
+  {
+    this->file_name[len] = '_';
+    len++;
+  }
   while (digits > 0)
   {
     this->file_name[len] = '0';
@@ -677,7 +684,7 @@ void LASwriteOpener::make_file_name(const CHAR* file_name, I32 file_number)
     {
       if (this->file_name == 0)
       {
-        this->file_name = strdup("output.0000000.xxx");
+        this->file_name = strdup("output_0000000.xxx");
       }
       len = strlen(this->file_name);
     }
@@ -687,18 +694,13 @@ void LASwriteOpener::make_file_name(const CHAR* file_name, I32 file_number)
     I32 file_num = file_number;
     while (num > 0 && this->file_name[num] >= '0' && this->file_name[num] <= '9')
     {
-      if (this->file_name[num] == DIRECTORY_SLASH)
-      {
-        fprintf(stderr,"WARNING: number %d for file name too big to store in '%s'\n", file_number, file_name);
-        break;
-      }
       this->file_name[num] = '0' + (file_num%10);
       file_num = file_num/10;
       num--;
     }
     if (file_num)
     {
-      fprintf(stderr,"WARNING: number %d for file name too big to store in '%s'\n", file_number, file_name);
+      fprintf(stderr,"WARNING: file name number %d too big to store in '%s'. use more digits.\n", file_number, this->file_name);
     }
   }
   else
@@ -824,11 +826,17 @@ CHAR* LASwriteOpener::get_file_name_base() const
     file_name_base = strdup(file_name);
     // remove extension
     int len = strlen(file_name_base);
-    while ((len > 0) && (file_name_base[len] != '.') && (file_name_base[len] != DIRECTORY_SLASH)) len--;
+    while ((len > 0) && (file_name_base[len] != '.') && (file_name_base[len] != '\\') && (file_name_base[len] != '/') && (file_name_base[len] != ':')) len--;
     if (file_name_base[len] == '.')
     {
       file_name_base[len] = '\0';
     }
+  }
+  else if (directory)
+  {
+    int len = strlen(directory);
+    file_name_base = (CHAR*)malloc(len+2);
+    sprintf(file_name_base, "%s\\", directory);
   }
 
   return file_name_base;
@@ -934,7 +942,7 @@ void LASwriteOpener::add_directory(const CHAR* directory)
   if (file_name && directory)
   {
     I32 len = strlen(file_name);
-    while (len > 0 && file_name[len] != DIRECTORY_SLASH) len--;
+    while ((len > 0) && (file_name[len] != '\\') && (file_name[len] != '/') && (file_name[len] != ':')) len--;
     if (len > 0) len++;
     CHAR* new_file_name = (CHAR*)malloc(strlen(directory) + strlen(&(file_name[len])) + 5);
     sprintf(new_file_name, "%s%c%s", directory, DIRECTORY_SLASH, &(file_name[len]));
@@ -951,9 +959,9 @@ void LASwriteOpener::add_appendix(const CHAR* appendix)
   {
     I32 len = strlen(file_name);
     CHAR* new_file_name = (CHAR*)malloc(len + strlen(appendix) + 5);
-    while (len > 0 && file_name[len] != '.' && file_name[len] != DIRECTORY_SLASH) len--;
+    while ((len > 0) && (file_name[len] != '.') && (file_name[len] != '\\') && (file_name[len] != '/') && (file_name[len] != ':')) len--;
     
-    if ((len == 0) || (file_name[len] == DIRECTORY_SLASH))
+    if ((len == 0) || (file_name[len] == '\\') || (file_name[len] == '/') || (file_name[len] == ':'))
     {
       sprintf(new_file_name, "%s%s", file_name, appendix);
     }
@@ -975,9 +983,9 @@ void LASwriteOpener::cut_characters(U32 cut)
   {
     I32 len = strlen(file_name);
     CHAR* new_file_name = (CHAR*)malloc(len - cut + 5);
-    while (len > 0 && file_name[len] != '.' && file_name[len] != DIRECTORY_SLASH) len--;
+    while ((len > 0) && (file_name[len] != '.') && (file_name[len] != '\\') && (file_name[len] != '/') && (file_name[len] != ':')) len--;
     
-    if ((len == 0) || (file_name[len] == DIRECTORY_SLASH))
+    if ((len == 0) || (file_name[len] == '\\') || (file_name[len] == '/') || (file_name[len] == ':'))
     {
       len = strlen(file_name);
       strncpy(new_file_name, file_name, len-cut);
@@ -994,6 +1002,7 @@ void LASwriteOpener::cut_characters(U32 cut)
 
 LASwriteOpener::LASwriteOpener()
 {
+  io_obuffer_size = LAS_TOOLS_IO_OBUFFER_SIZE;
   directory = 0;
   file_name = 0;
   appendix = 0;
@@ -1010,8 +1019,6 @@ LASwriteOpener::LASwriteOpener()
   use_chunking = TRUE;
   use_stdout = FALSE;
   use_nil = FALSE;
-  buffered = FALSE;
-  use_v1 = FALSE;
 }
 
 LASwriteOpener::~LASwriteOpener()

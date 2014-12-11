@@ -13,17 +13,18 @@
 
   COPYRIGHT:
 
-    (c) 2007-2012, martin isenburg, rapidlasso - tools to catch reality
+    (c) 2007-2014, martin isenburg, rapidlasso - tools to catch reality
 
     This is free software; you can redistribute and/or modify it under the
     terms of the GNU Lesser General Licence as published by the Free Software
-    Foundation except for (R). See the LICENSE.txt file for more information.
+    Foundation. See the LICENSE.txt file for more information.
 
     This software is distributed WITHOUT ANY WARRANTY and without even the
     implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
   
   CHANGE HISTORY:
   
+    13 October 2014 -- changed default IO buffer size with setvbuf() to 262144
     5 November 2011 -- changed default IO buffer size with setvbuf() to 65536
     8 May 2011 -- added an option for variable chunking via chunk()
     23 April 2011 -- added additional open parameters to support chunking
@@ -59,15 +60,15 @@ public:
   BOOL refile(FILE* file);
 
   BOOL open(const LASheader* header, U32 compressor=LASZIP_COMPRESSOR_NONE, I32 requested_version=0, I32 chunk_size=50000);
-  BOOL open(const char* file_name, const LASheader* header, U32 compressor=LASZIP_COMPRESSOR_NONE, I32 requested_version=0, I32 chunk_size=50000, U32 io_buffer_size=65536);
+  BOOL open(const char* file_name, const LASheader* header, U32 compressor=LASZIP_COMPRESSOR_NONE, I32 requested_version=0, I32 chunk_size=50000, I32 io_buffer_size=LAS_TOOLS_IO_OBUFFER_SIZE);
   BOOL open(FILE* file, const LASheader* header, U32 compressor=LASZIP_COMPRESSOR_NONE, I32 requested_version=0, I32 chunk_size=50000);
   BOOL open(ostream& ostream, const LASheader* header, U32 compressor=LASZIP_COMPRESSOR_NONE, I32 requested_version=0, I32 chunk_size=50000);
 
   BOOL write_point(const LASpoint* point);
   BOOL chunk();
 
-  BOOL update_header(const LASheader* header, BOOL use_inventory=TRUE, BOOL update_extra_bytes=FALSE);
-  I64 close(BOOL update_npoints=true);
+  BOOL update_header(const LASheader* header, BOOL use_inventory=FALSE, BOOL update_extra_bytes=FALSE);
+  I64 close(BOOL update_npoints=TRUE);
 
   LASwriterLAS();
   ~LASwriterLAS();

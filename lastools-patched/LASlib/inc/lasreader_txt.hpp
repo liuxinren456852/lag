@@ -13,17 +13,18 @@
 
   COPYRIGHT:
 
-    (c) 2007-2012, martin isenburg, rapidlasso - tools to catch reality
+    (c) 2007-2014, martin isenburg, rapidlasso - tools to catch reality
 
     This is free software; you can redistribute and/or modify it under the
     terms of the GNU Lesser General Licence as published by the Free Software
-    Foundation except for (R). See the LICENSE.txt file for more information.
+    Foundation. See the LICENSE.txt file for more information.
 
     This software is distributed WITHOUT ANY WARRANTY and without even the
     implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
   
   CHANGE HISTORY:
   
+    9 July 2014 -- allowing input from stdin after the 7:1 in the World Cup
     8 April 2011 -- created after starting a google group for LAStools users
   
 ===============================================================================
@@ -48,8 +49,9 @@ public:
   void set_scale_scan_angle(F32 scale_scan_angle);
   void set_scale_factor(const F64* scale_factor);
   void set_offset(const F64* offset);
-  void add_extra_attribute(I32 data_type, const CHAR* name, const CHAR* description=0, F64 scale=1.0, F64 offset=0.0);
+  void add_attribute(I32 data_type, const CHAR* name, const CHAR* description=0, F64 scale=1.0, F64 offset=0.0);
   virtual BOOL open(const CHAR* file_name, const CHAR* parse_string=0, I32 skip_lines=0, BOOL populate_header=FALSE);
+  virtual BOOL open(FILE* file, const CHAR* file_name=0, const CHAR* parse_string=0, I32 skip_lines=0, BOOL populate_header=FALSE);
 
   I32 get_format() const { return LAS_TOOLS_FORMAT_TXT; };
 
@@ -80,14 +82,14 @@ private:
   FILE* file;
   bool piped;
   CHAR line[512];
-  I32 number_extra_attributes;
-  I32 extra_attributes_data_types[10];
-  const CHAR* extra_attribute_names[10];
-  const CHAR* extra_attribute_descriptions[10];
-  F64 extra_attribute_scales[10];
-  F64 extra_attribute_offsets[10];
-  I32 extra_attribute_array_offsets[10];
-  BOOL parse_extra_attribute(const CHAR* l, I32 index);
+  I32 number_attributes;
+  I32 attributes_data_types[10];
+  const CHAR* attribute_names[10];
+  const CHAR* attribute_descriptions[10];
+  F64 attribute_scales[10];
+  F64 attribute_offsets[10];
+  I32 attribute_starts[10];
+  BOOL parse_attribute(const CHAR* l, I32 index);
   BOOL parse(const CHAR* parse_string);
   BOOL check_parse_string(const CHAR* parse_string);
   void populate_scale_and_offset();

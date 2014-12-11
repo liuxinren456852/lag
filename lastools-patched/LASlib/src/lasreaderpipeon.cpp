@@ -17,7 +17,7 @@
 
     This is free software; you can redistribute and/or modify it under the
     terms of the GNU Lesser General Licence as published by the Free Software
-    Foundation except for (R). See the LICENSE.txt file for more information.
+    Foundation. See the LICENSE.txt file for more information.
 
     This software is distributed WITHOUT ANY WARRANTY and without even the
     implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
@@ -62,11 +62,11 @@ BOOL LASreaderPipeOn::open(LASreader* lasreader)
   lasreader->header.vlr_lasoriginal = 0;
   lasreader->header.user_data_after_header = 0;
 
-  // special check for extra attributes
-  if (header.number_extra_attributes)
+  // special check for attributes in extra bytes
+  if (header.number_attributes)
   {
-    header.number_extra_attributes = 0;
-    header.init_extra_attributes(lasreader->header.number_extra_attributes, lasreader->header.extra_attributes);
+    header.number_attributes = 0;
+    header.init_attributes(lasreader->header.number_attributes, lasreader->header.attributes);
   }
 
   // initialize the point with the header info

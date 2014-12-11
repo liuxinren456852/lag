@@ -253,8 +253,11 @@ laszip_destroy(
   if (pointer == 0) return 1;
   laszip_dll_struct* laszip_dll = (laszip_dll_struct*)pointer;
 
+  int err = 0;
+
   try
   {
+    err = laszip_clean(laszip_dll);
     delete laszip_dll;
   }
   catch (...)
@@ -262,7 +265,7 @@ laszip_destroy(
     return 1;
   }
 
-  return 0;
+  return err;
 }
 
 /*---------------------------------------------------------------------------*/
@@ -716,7 +719,7 @@ laszip_set_point(
         }
         else
         {
-          sprintf(laszip_dll->error, "target point has %d extra bytes but source point has %d", laszip_dll->point.num_extra_bytes == point->num_extra_bytes);
+          sprintf(laszip_dll->error, "target point has %d extra bytes but source point has %d", laszip_dll->point.num_extra_bytes, point->num_extra_bytes);
           return 1;
         }
       }
@@ -1666,16 +1669,16 @@ laszip_open_writer(
 
       // write the LASzip VLR payload
 
-      //     U16  compressor         2 bytes 
-      //     U32  coder              2 bytes 
-      //     U8   version_major      1 byte 
-      //     U8   version_minor      1 byte
-      //     U16  version_revision   2 bytes
-      //     U32  options            4 bytes 
-      //     I32  chunk_size         4 bytes
-      //     I64  num_points         8 bytes
-      //     I64  num_bytes          8 bytes
-      //     U16  num_items          2 bytes
+      //     U16  compressor                2 bytes 
+      //     U32  coder                     2 bytes 
+      //     U8   version_major             1 byte 
+      //     U8   version_minor             1 byte
+      //     U16  version_revision          2 bytes
+      //     U32  options                   4 bytes 
+      //     I32  chunk_size                4 bytes
+      //     I64  number_of_special_evlrs   8 bytes
+      //     I64  offset_to_special_evlrs   8 bytes
+      //     U16  num_items                 2 bytes
       //        U16 type                2 bytes * num_items
       //        U16 size                2 bytes * num_items
       //        U16 version             2 bytes * num_items
@@ -1716,14 +1719,14 @@ laszip_open_writer(
         sprintf(laszip_dll->error, "writing chunk_size %u", laszip->chunk_size);
         return 1;
       }
-      try { laszip_dll->streamout->put64bitsLE((U8*)&(laszip->num_points)); } catch(...)
+      try { laszip_dll->streamout->put64bitsLE((U8*)&(laszip->number_of_special_evlrs)); } catch(...)
       {
-        sprintf(laszip_dll->error, "writing num_points %d", (I32)laszip->num_points);
+        sprintf(laszip_dll->error, "writing number_of_special_evlrs %d", (I32)laszip->number_of_special_evlrs);
         return 1;
       }
-      try { laszip_dll->streamout->put64bitsLE((U8*)&(laszip->num_bytes)); } catch(...)
+      try { laszip_dll->streamout->put64bitsLE((U8*)&(laszip->offset_to_special_evlrs)); } catch(...)
       {
-        sprintf(laszip_dll->error, "writing num_bytes %d", (I32)laszip->num_bytes);
+        sprintf(laszip_dll->error, "writing offset_to_special_evlrs %d", (I32)laszip->offset_to_special_evlrs);
         return 1;
       }
       try { laszip_dll->streamout->put16bitsLE((U8*)&(laszip->num_items)); } catch(...)
@@ -2288,16 +2291,16 @@ laszip_open_reader(
 
             // read the LASzip VLR payload
 
-            //     U16  compressor         2 bytes 
-            //     U32  coder              2 bytes 
-            //     U8   version_major      1 byte 
-            //     U8   version_minor      1 byte
-            //     U16  version_revision   2 bytes
-            //     U32  options            4 bytes 
-            //     I32  chunk_size         4 bytes
-            //     I64  num_points         8 bytes
-            //     I64  num_bytes          8 bytes
-            //     U16  num_items          2 bytes
+            //     U16  compressor                2 bytes 
+            //     U32  coder                     2 bytes 
+            //     U8   version_major             1 byte 
+            //     U8   version_minor             1 byte
+            //     U16  version_revision          2 bytes
+            //     U32  options                   4 bytes 
+            //     I32  chunk_size                4 bytes
+            //     I64  number_of_special_evlrs   8 bytes
+            //     I64  offset_to_special_evlrs   8 bytes
+            //     U16  num_items                 2 bytes
             //        U16 type                2 bytes * num_items
             //        U16 size                2 bytes * num_items
             //        U16 version             2 bytes * num_items
@@ -2338,14 +2341,14 @@ laszip_open_reader(
               sprintf(laszip_dll->error, "reading chunk_size %u", laszip->chunk_size);
               return 1;
             }
-            try { laszip_dll->streamin->get64bitsLE((U8*)&(laszip->num_points)); } catch(...)
+            try { laszip_dll->streamin->get64bitsLE((U8*)&(laszip->number_of_special_evlrs)); } catch(...)
             {
-              sprintf(laszip_dll->error, "reading num_points %d", (I32)laszip->num_points);
+              sprintf(laszip_dll->error, "reading number_of_special_evlrs %d", (I32)laszip->number_of_special_evlrs);
               return 1;
             }
-            try { laszip_dll->streamin->get64bitsLE((U8*)&(laszip->num_bytes)); } catch(...)
+            try { laszip_dll->streamin->get64bitsLE((U8*)&(laszip->offset_to_special_evlrs)); } catch(...)
             {
-              sprintf(laszip_dll->error, "reading num_bytes %d", (I32)laszip->num_bytes);
+              sprintf(laszip_dll->error, "reading offset_to_special_evlrs %d", (I32)laszip->offset_to_special_evlrs);
               return 1;
             }
             try { laszip_dll->streamin->get16bitsLE((U8*)&(laszip->num_items)); } catch(...)

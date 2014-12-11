@@ -17,7 +17,7 @@
 
     This is free software; you can redistribute and/or modify it under the
     terms of the GNU Lesser General Licence as published by the Free Software
-    Foundation except for (R). See the LICENSE.txt file for more information.
+    Foundation. See the LICENSE.txt file for more information.
 
     This software is distributed WITHOUT ANY WARRANTY and without even the
     implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
@@ -41,51 +41,68 @@ extern "C" FILE* fopen_compressed(const char* filename, const char* mode, bool* 
 
 BOOL LASreaderTXT::open(const char* file_name, const char* parse_string, I32 skip_lines, BOOL populate_header)
 {
-  int i;
-
   if (file_name == 0)
   {
-    fprintf(stderr,"ERROR: fine name pointer is zero\n");
+    fprintf(stderr,"ERROR: file name pointer is zero\n");
     return FALSE;
   }
 
-  clean();
-
-  file = fopen_compressed(file_name, "r", &piped);
+  FILE* file = fopen_compressed(file_name, "r", &piped);
   if (file == 0)
   {
     fprintf(stderr, "ERROR: cannot open file '%s'\n", file_name);
     return FALSE;
   }
 
+  return open(file, file_name, parse_string, skip_lines, populate_header);
+}
+
+BOOL LASreaderTXT::open(FILE* file, const char* file_name, const char* parse_string, I32 skip_lines, BOOL populate_header)
+{
+  int i;
+
+  if (file == 0)
+  {
+    fprintf(stderr,"ERROR: file pointer is zero\n");
+    return FALSE;
+  }
+
+  // clean the reader
+
+  clean();
+
   // clean the header
 
   header.clean();
 
-  // add extra attributes
+  // set the file pointer
 
-  if (number_extra_attributes)
+  this->file = file;
+
+  // add attributes in extra bytes
+
+  if (number_attributes)
   {
-    for (i = 0; i < number_extra_attributes; i++)
+    for (i = 0; i < number_attributes; i++)
     {
-      I32 type = (extra_attributes_data_types[i]-1)%10;
-      I32 dim = (extra_attributes_data_types[i]-1)/10 + 1;
+      I32 type = (attributes_data_types[i]-1)%10;
+      I32 dim = (attributes_data_types[i]-1)/10 + 1;
       try { 
-        LASattribute extra_attribute(type, extra_attribute_names[i], extra_attribute_descriptions[i], dim);
-        if (extra_attribute_scales[i] != 1.0)
+        LASattribute attribute(type, attribute_names[i], attribute_descriptions[i], dim);
+        if (attribute_scales[i] != 1.0 || attribute_offsets[i] != 0.0)
         {
           for (I32 d = 0; d < dim; d++)
-            extra_attribute.set_scale(extra_attribute_scales[i], d);
+            attribute.set_scale(attribute_scales[i], d);
         }
-        if (extra_attribute_offsets[i] != 0.0)
+        if (attribute_offsets[i] != 0.0)
         {
           for (I32 d = 0; d < dim; d++)
-            extra_attribute.set_offset(extra_attribute_offsets[i], d);
+            attribute.set_offset(attribute_offsets[i], d);
         }
-        header.add_extra_attribute(extra_attribute);
+        header.add_attribute(attribute);
       }
       catch(...) {
-        fprintf(stderr,"ERROR: initializing extra attribute %s\n", extra_attribute_descriptions[i]);
+        fprintf(stderr,"ERROR: initializing attribute %s\n", attribute_descriptions[i]);
         return FALSE;
       }
     }
@@ -98,24 +115,32 @@ BOOL LASreaderTXT::open(const char* file_name, const char* parse_string, I32 ski
 
   // populate the header as much as it makes sense
 
-  sprintf(header.system_identifier, "LAStools (c) by Martin Isenburg");
+  sprintf(header.system_identifier, "LAStools (c) by rapidlasso GmbH");
   sprintf(header.generating_software, "via LASreaderTXT (%d)", LAS_TOOLS_VERSION);
 
   // maybe set creation date
 
 #ifdef _WIN32
-  WIN32_FILE_ATTRIBUTE_DATA attr;
-	SYSTEMTIME creation;
-  GetFileAttributesEx(file_name, GetFileExInfoStandard, &attr);
-	FileTimeToSystemTime(&attr.ftCreationTime, &creation);
-  int startday[13] = {-1, 0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334};
-  header.file_creation_day = startday[creation.wMonth] + creation.wDay;
-  header.file_creation_year = creation.wYear;
-  // leap year handling
-  if ((((creation.wYear)%4) == 0) && (creation.wMonth > 2)) header.file_creation_day++;
+  if (file_name)
+  {
+    WIN32_FILE_ATTRIBUTE_DATA attr;
+	  SYSTEMTIME creation;
+    GetFileAttributesEx(file_name, GetFileExInfoStandard, &attr);
+	  FileTimeToSystemTime(&attr.ftCreationTime, &creation);
+    int startday[13] = {-1, 0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334};
+    header.file_creation_day = startday[creation.wMonth] + creation.wDay;
+    header.file_creation_year = creation.wYear;
+    // leap year handling
+    if ((((creation.wYear)%4) == 0) && (creation.wMonth > 2)) header.file_creation_day++;
+  }
+  else
+  {
+    header.file_creation_day = 333;
+    header.file_creation_year = 2014;
+  }
 #else
   header.file_creation_day = 333;
-  header.file_creation_year = 2011;
+  header.file_creation_year = 2014;
 #endif
   if (parse_string)
   {
@@ -152,12 +177,12 @@ BOOL LASreaderTXT::open(const char* file_name, const char* parse_string, I32 ski
     header.point_data_record_length = 20;
   }
 
-  // maybe extra attributes
+  // maybe attributes in extra bytes
 
-  if (header.number_extra_attributes)
+  if (header.number_attributes)
   {
     header.update_extra_bytes_vlr();
-    header.point_data_record_length += header.get_total_extra_attributes_size();
+    header.point_data_record_length += header.get_attributes_size();
   }
 
   // initialize point
@@ -170,9 +195,9 @@ BOOL LASreaderTXT::open(const char* file_name, const char* parse_string, I32 ski
 
   // should we perform an extra pass to fully populate the header
 
-  if (populate_header)
+  if (populate_header && file_name)
   {
-    // create a cheaper parse string that only looks for 'x' 'y' 'z' 'r' and extra attributes
+    // create a cheaper parse string that only looks for 'x' 'y' 'z' 'r' and attributes in extra bytes
 
     char* parse_less;
     if (parse_string == 0)
@@ -239,14 +264,14 @@ BOOL LASreaderTXT::open(const char* file_name, const char* parse_string, I32 ski
 
     if (point.return_number >= 1 && point.return_number <= 5) header.number_of_points_by_return[point.return_number-1]++;
 
-    // init the min and max of extra attributes
+    // init the min and max of attributes in extra bytes
 
-    if (number_extra_attributes)
+    if (number_attributes)
     {
-      for (i = 0; i < number_extra_attributes; i++)
+      for (i = 0; i < number_attributes; i++)
       {
-        header.extra_attributes[i].set_min(point.extra_bytes + extra_attribute_array_offsets[i]);
-        header.extra_attributes[i].set_max(point.extra_bytes + extra_attribute_array_offsets[i]);
+        header.attributes[i].set_min(point.extra_bytes + attribute_starts[i]);
+        header.attributes[i].set_max(point.extra_bytes + attribute_starts[i]);
       }
     }
 
@@ -267,13 +292,13 @@ BOOL LASreaderTXT::open(const char* file_name, const char* parse_string, I32 ski
         else if (point.coordinates[1] > header.max_y) header.max_y = point.coordinates[1];
         if (point.coordinates[2] < header.min_z) header.min_z = point.coordinates[2];
         else if (point.coordinates[2] > header.max_z) header.max_z = point.coordinates[2];
-        // update the min and max of extra attributes
-        if (number_extra_attributes)
+        // update the min and max of attributes in extra bytes
+        if (number_attributes)
         {
-          for (i = 0; i < number_extra_attributes; i++)
+          for (i = 0; i < number_attributes; i++)
           {
-            header.extra_attributes[i].update_min(point.extra_bytes + extra_attribute_array_offsets[i]);
-            header.extra_attributes[i].update_max(point.extra_bytes + extra_attribute_array_offsets[i]);
+            header.attributes[i].update_min(point.extra_bytes + attribute_starts[i]);
+            header.attributes[i].update_max(point.extra_bytes + attribute_starts[i]);
           }
         }
       }
@@ -604,14 +629,14 @@ BOOL LASreaderTXT::open(const char* file_name, const char* parse_string, I32 ski
     header.min_y = header.max_y = point.coordinates[1];
     header.min_z = header.max_z = point.coordinates[2];
 
-    // init the min and max of extra attributes
+    // init the min and max of attributes in extra bytes
 
-    if (number_extra_attributes)
+    if (number_attributes)
     {
-      for (i = 0; i < number_extra_attributes; i++)
+      for (i = 0; i < number_attributes; i++)
       {
-        header.extra_attributes[i].set_min(point.extra_bytes + extra_attribute_array_offsets[i]);
-        header.extra_attributes[i].set_max(point.extra_bytes + extra_attribute_array_offsets[i]);
+        header.attributes[i].set_min(point.extra_bytes + attribute_starts[i]);
+        header.attributes[i].set_max(point.extra_bytes + attribute_starts[i]);
       }
     }
 
@@ -691,30 +716,30 @@ void LASreaderTXT::set_offset(const F64* offset)
   }
 }
 
-void LASreaderTXT::add_extra_attribute(I32 data_type, const char* name, const char* description, F64 scale, F64 offset)
+void LASreaderTXT::add_attribute(I32 data_type, const char* name, const char* description, F64 scale, F64 offset)
 {
-  extra_attributes_data_types[number_extra_attributes] = data_type;
+  attributes_data_types[number_attributes] = data_type;
   if (name)
   {
-    extra_attribute_names[number_extra_attributes] = strdup(name);
+    attribute_names[number_attributes] = strdup(name);
   }
   else
   {
     char temp[32];
-    sprintf(temp, "attribute %d", number_extra_attributes);
-    extra_attribute_names[number_extra_attributes] = strdup(temp);
+    sprintf(temp, "attribute %d", number_attributes);
+    attribute_names[number_attributes] = strdup(temp);
   }
   if (description)
   {
-    extra_attribute_descriptions[number_extra_attributes] = strdup(description);
+    attribute_descriptions[number_attributes] = strdup(description);
   }
   else
   {
-    extra_attribute_descriptions[number_extra_attributes] = 0;
+    attribute_descriptions[number_attributes] = 0;
   }
-  extra_attribute_scales[number_extra_attributes] = scale;
-  extra_attribute_offsets[number_extra_attributes] = offset;
-  number_extra_attributes++;
+  attribute_scales[number_attributes] = scale;
+  attribute_offsets[number_attributes] = offset;
+  number_attributes++;
 }
 
 BOOL LASreaderTXT::seek(const I64 p_index)
@@ -731,7 +756,6 @@ BOOL LASreaderTXT::seek(const I64 p_index)
     // skip lines if we have to
     int i;
     for (i = 0; i < skip_lines; i++) fgets(line, 512, file);
-    this->skip_lines = skip_lines;
     // read the first line with full parse_string
     i = 0;
     while (fgets(line, 512, file))
@@ -821,9 +845,9 @@ BOOL LASreaderTXT::read_point_default()
     }
   }
   // compute the quantized x, y, and z values
-  point.x = header.get_x(point.coordinates[0]);
-  point.y = header.get_y(point.coordinates[1]);
-  point.z = header.get_z(point.coordinates[2]);
+  point.set_X(header.get_X(point.coordinates[0]));
+  point.set_Y(header.get_Y(point.coordinates[1]));
+  point.set_Z(header.get_Z(point.coordinates[2]));
   p_count++;
   if (!populated_header)
   {
@@ -837,13 +861,13 @@ BOOL LASreaderTXT::read_point_default()
     else if (point.coordinates[1] > header.max_y) header.max_y = point.coordinates[1];
     if (point.coordinates[2] < header.min_z) header.min_z = point.coordinates[2];
     else if (point.coordinates[2] > header.max_z) header.max_z = point.coordinates[2];
-    // update the min and max of extra attributes
-    if (number_extra_attributes)
+    // update the min and max of attributes in extra bytes
+    if (number_attributes)
     {
-      for (I32 i = 0; i < number_extra_attributes; i++)
+      for (I32 i = 0; i < number_attributes; i++)
       {
-        header.extra_attributes[i].update_min(point.extra_bytes + extra_attribute_array_offsets[i]);
-        header.extra_attributes[i].update_max(point.extra_bytes + extra_attribute_array_offsets[i]);
+        header.attributes[i].update_min(point.extra_bytes + attribute_starts[i]);
+        header.attributes[i].update_max(point.extra_bytes + attribute_starts[i]);
       }
     }
   }
@@ -948,7 +972,7 @@ LASreaderTXT::LASreaderTXT()
   scale_intensity = 1.0f;
   translate_scan_angle = 0.0f;
   scale_scan_angle = 1.0f;
-  number_extra_attributes = 0;
+  number_attributes = 0;
   clean();
 }
 
@@ -967,150 +991,173 @@ LASreaderTXT::~LASreaderTXT()
   }
 }
 
-BOOL LASreaderTXT::parse_extra_attribute(const char* l, I32 index)
+BOOL LASreaderTXT::parse_attribute(const char* l, I32 index)
 {
-  if (index >= header.number_extra_attributes)
+  if (index >= header.number_attributes)
   {
     return FALSE;
   }
-  if (header.extra_attributes[index].data_type == 1)
+  if (header.attributes[index].data_type == 1)
   {
     I32 temp_i;
-    if (header.extra_attributes[index].has_scale())
+    F64 temp_d;
+    if (sscanf(l, "%lf", &temp_d) != 1) return FALSE;
+    if (header.attributes[index].has_offset())
     {
-      F64 temp_d;
-      if (sscanf(l, "%lf", &temp_d) != 1) return FALSE;
-      temp_i = I32_QUANTIZE(temp_d/header.extra_attributes[index].scale[0]);
+      temp_d -= header.attributes[index].offset[0];
+    }
+    if (header.attributes[index].has_scale())
+    {
+      temp_i = I32_QUANTIZE(temp_d/header.attributes[index].scale[0]);
     }
     else
     {
-      if (sscanf(l, "%d", &temp_i) != 1) return FALSE;
+      temp_i = I32_QUANTIZE(temp_d);
     }
     if (temp_i < U8_MIN || temp_i > U8_MAX)
     {
-      fprintf(stderr, "WARNING: extra attribute %d of type U8 is %d. clamped to [%d %d] range.\n", index, temp_i, U8_MIN, U8_MAX);
-      point.set_extra_attribute(extra_attribute_array_offsets[index], U8_CLAMP(temp_i));
+      fprintf(stderr, "WARNING: attribute %d of type U8 is %d. clamped to [%d %d] range.\n", index, temp_i, U8_MIN, U8_MAX);
+      point.set_attribute(attribute_starts[index], U8_CLAMP(temp_i));
     }
     else
     {
-      point.set_extra_attribute(extra_attribute_array_offsets[index], (U8)temp_i);
+      point.set_attribute(attribute_starts[index], (U8)temp_i);
     }
   }
-  else if (header.extra_attributes[index].data_type == 2)
+  else if (header.attributes[index].data_type == 2)
   {
     I32 temp_i;
-    if (header.extra_attributes[index].has_scale())
+    F64 temp_d;
+    if (sscanf(l, "%lf", &temp_d) != 1) return FALSE;
+    if (header.attributes[index].has_offset())
     {
-      F64 temp_d;
-      if (sscanf(l, "%lf", &temp_d) != 1) return FALSE;
-      temp_i = I32_QUANTIZE(temp_d/header.extra_attributes[index].scale[0]);
+      temp_d -= header.attributes[index].offset[0];
+    }
+    if (header.attributes[index].has_scale())
+    {
+      temp_i = I32_QUANTIZE(temp_d/header.attributes[index].scale[0]);
     }
     else
     {
-      if (sscanf(l, "%d", &temp_i) != 1) return FALSE;
+      temp_i = I32_QUANTIZE(temp_d);
     }
     if (temp_i < I8_MIN || temp_i > I8_MAX)
     {
-      fprintf(stderr, "WARNING: extra attribute %d of type I8 is %d. clamped to [%d %d] range.\n", index, temp_i, I8_MIN, I8_MAX);
-      point.set_extra_attribute(extra_attribute_array_offsets[index], I8_CLAMP(temp_i));
+      fprintf(stderr, "WARNING: attribute %d of type I8 is %d. clamped to [%d %d] range.\n", index, temp_i, I8_MIN, I8_MAX);
+      point.set_attribute(attribute_starts[index], I8_CLAMP(temp_i));
     }
     else
     {
-      point.set_extra_attribute(extra_attribute_array_offsets[index], (I8)temp_i);
+      point.set_attribute(attribute_starts[index], (I8)temp_i);
     }
   }
-  else if (header.extra_attributes[index].data_type == 3)
+  else if (header.attributes[index].data_type == 3)
   {
     I32 temp_i;
-    if (header.extra_attributes[index].has_scale())
+    F64 temp_d;
+    if (sscanf(l, "%lf", &temp_d) != 1) return FALSE;
+    if (header.attributes[index].has_offset())
     {
-      F64 temp_d;
-      if (sscanf(l, "%lf", &temp_d) != 1) return FALSE;
-      temp_i = I32_QUANTIZE(temp_d/header.extra_attributes[index].scale[0]);
+      temp_d -= header.attributes[index].offset[0];
+    }
+    if (header.attributes[index].has_scale())
+    {
+      temp_i = I32_QUANTIZE(temp_d/header.attributes[index].scale[0]);
     }
     else
     {
-      if (sscanf(l, "%d", &temp_i) != 1) return FALSE;
+      temp_i = I32_QUANTIZE(temp_d);
     }
     if (temp_i < U16_MIN || temp_i > U16_MAX)
     {
-      fprintf(stderr, "WARNING: extra attribute %d of type U16 is %d. clamped to [%d %d] range.\n", index, temp_i, U16_MIN, U16_MAX);
-      point.set_extra_attribute(extra_attribute_array_offsets[index], U16_CLAMP(temp_i));
+      fprintf(stderr, "WARNING: attribute %d of type U16 is %d. clamped to [%d %d] range.\n", index, temp_i, U16_MIN, U16_MAX);
+      point.set_attribute(attribute_starts[index], U16_CLAMP(temp_i));
     }
     else
     {
-      point.set_extra_attribute(extra_attribute_array_offsets[index], (U16)temp_i);
+      point.set_attribute(attribute_starts[index], (U16)temp_i);
     }
   }
-  else if (header.extra_attributes[index].data_type == 4)
+  else if (header.attributes[index].data_type == 4)
   {
     I32 temp_i;
-    if (header.extra_attributes[index].has_scale())
+    F64 temp_d;
+    if (sscanf(l, "%lf", &temp_d) != 1) return FALSE;
+    if (header.attributes[index].has_offset())
     {
-      F64 temp_d;
-      if (sscanf(l, "%lf", &temp_d) != 1) return FALSE;
-      temp_i = I32_QUANTIZE(temp_d/header.extra_attributes[index].scale[0]);
+      temp_d -= header.attributes[index].offset[0];
+    }
+    if (header.attributes[index].has_scale())
+    {
+      temp_i = I32_QUANTIZE(temp_d/header.attributes[index].scale[0]);
     }
     else
     {
-      if (sscanf(l, "%d", &temp_i) != 1) return FALSE;
+      temp_i = I32_QUANTIZE(temp_d);
     }
     if (temp_i < I16_MIN || temp_i > I16_MAX)
     {
-      fprintf(stderr, "WARNING: extra attribute %d of type I16 is %d. clamped to [%d %d] range.\n", index, temp_i, I16_MIN, I16_MAX);
-      point.set_extra_attribute(extra_attribute_array_offsets[index], I16_CLAMP(temp_i));
+      fprintf(stderr, "WARNING: attribute %d of type I16 is %d. clamped to [%d %d] range.\n", index, temp_i, I16_MIN, I16_MAX);
+      point.set_attribute(attribute_starts[index], I16_CLAMP(temp_i));
     }
     else
     {
-      point.set_extra_attribute(extra_attribute_array_offsets[index], (I16)temp_i);
+      point.set_attribute(attribute_starts[index], (I16)temp_i);
     }
   }
-  else if (header.extra_attributes[index].data_type == 5)
+  else if (header.attributes[index].data_type == 5)
   {
     U32 temp_u;
-    if (header.extra_attributes[index].has_scale())
+    F64 temp_d;
+    if (sscanf(l, "%lf", &temp_d) != 1) return FALSE;
+    if (header.attributes[index].has_offset())
     {
-      F64 temp_d;
-      if (sscanf(l, "%lf", &temp_d) != 1) return FALSE;
-      temp_u = U32_QUANTIZE(temp_d/header.extra_attributes[index].scale[0]);
+      temp_d -= header.attributes[index].offset[0];
+    }
+    if (header.attributes[index].has_scale())
+    {
+      temp_u = U32_QUANTIZE(temp_d/header.attributes[index].scale[0]);
     }
     else
     {
-      if (sscanf(l, "%u", &temp_u) != 1) return FALSE;
+      temp_u = U32_QUANTIZE(temp_d);
     }
-    point.set_extra_attribute(extra_attribute_array_offsets[index], temp_u);
+    point.set_attribute(attribute_starts[index], temp_u);
   }
-  else if (header.extra_attributes[index].data_type == 6)
+  else if (header.attributes[index].data_type == 6)
   {
     I32 temp_i;
-    if (header.extra_attributes[index].has_scale())
+    F64 temp_d;
+    if (sscanf(l, "%lf", &temp_d) != 1) return FALSE;
+    if (header.attributes[index].has_offset())
     {
-      F64 temp_d;
-      if (sscanf(l, "%lf", &temp_d) != 1) return FALSE;
-      temp_i = I32_QUANTIZE(temp_d/header.extra_attributes[index].scale[0]);
+      temp_d -= header.attributes[index].offset[0];
+    }
+    if (header.attributes[index].has_scale())
+    {
+      temp_i = I32_QUANTIZE(temp_d/header.attributes[index].scale[0]);
     }
     else
     {
-      if (sscanf(l, "%d", &temp_i) != 1) return FALSE;
+      temp_i = I32_QUANTIZE(temp_d);
     }
-    if (sscanf(l, "%d", &temp_i) != 1) return FALSE;
-    point.set_extra_attribute(extra_attribute_array_offsets[index], temp_i);
+    point.set_attribute(attribute_starts[index], temp_i);
   }
-  else if (header.extra_attributes[index].data_type == 9)
+  else if (header.attributes[index].data_type == 9)
   {
     F32 temp_f;
     if (sscanf(l, "%f", &temp_f) != 1) return FALSE;
-    point.set_extra_attribute(extra_attribute_array_offsets[index], temp_f);
+    point.set_attribute(attribute_starts[index], temp_f);
   }
-  else if (header.extra_attributes[index].data_type == 10)
+  else if (header.attributes[index].data_type == 10)
   {
     F64 temp_d;
     if (sscanf(l, "%lf", &temp_d) != 1) return FALSE;
-    point.set_extra_attribute(extra_attribute_array_offsets[index], temp_d);
+    point.set_attribute(attribute_starts[index], temp_d);
   }
   else
   {
-    fprintf(stderr, "WARNING: extra attribute %d not (yet) implemented.\n", index);
+    fprintf(stderr, "WARNING: attribute %d not (yet) implemented.\n", index);
     return FALSE;
   }
   return TRUE;
@@ -1211,7 +1258,7 @@ BOOL LASreaderTXT::parse(const char* parse_string)
       if (l[0] == 0) return FALSE;
       if (sscanf(l, "%d", &temp_i) != 1) return FALSE;
       if (temp_i < 0 || temp_i > 7) fprintf(stderr, "WARNING: return number %d is out of range of three bits\n", temp_i);
-      point.number_of_returns_of_given_pulse = temp_i & 7;
+      point.number_of_returns = temp_i & 7;
       while (l[0] && l[0] != ' ' && l[0] != ',' && l[0] != '\t') l++; // then advance to next white space
     }
     else if (p[0] == 'r') // we expect the number of the return
@@ -1231,22 +1278,22 @@ BOOL LASreaderTXT::parse(const char* parse_string)
       if (temp_i < 0 || temp_i > 3) fprintf(stderr, "WARNING: terrasolid echo encoding %d is out of range of 0 to 3\n", temp_i);
       if (temp_i == 0) // only echo
       {
-        point.number_of_returns_of_given_pulse = 1;
+        point.number_of_returns = 1;
         point.return_number = 1;
       }
       else if (temp_i == 1) // first (of many)
       {
-        point.number_of_returns_of_given_pulse = 2;
+        point.number_of_returns = 2;
         point.return_number = 1;
       }
       else if (temp_i == 3) // last (of many)
       {
-        point.number_of_returns_of_given_pulse = 2;
+        point.number_of_returns = 2;
         point.return_number = 2;
       }
       else // intermediate
       {
-        point.number_of_returns_of_given_pulse = 3;
+        point.number_of_returns = 3;
         point.return_number = 2;
       }
       while (l[0] && l[0] != ' ' && l[0] != ',' && l[0] != '\t') l++; // then advance to next white space
@@ -1296,12 +1343,12 @@ BOOL LASreaderTXT::parse(const char* parse_string)
       point.scan_direction_flag = (temp_i ? 1 : 0);
       while (l[0] && l[0] != ' ' && l[0] != ',' && l[0] != '\t') l++; // then advance to next white space
     }
-    else if (p[0] >= '0' && p[0] <= '9') // we expect extra attribute number 0 to 9
+    else if (p[0] >= '0' && p[0] <= '9') // we expect attribute number 0 to 9
     {
       while (l[0] && (l[0] == ' ' || l[0] == ',' || l[0] == '\t')) l++; // first skip white spaces
       if (l[0] == 0) return FALSE;
       I32 index = (I32)(p[0] - '0');
-      if (!parse_extra_attribute(l, index)) return FALSE;
+      if (!parse_attribute(l, index)) return FALSE;
       while (l[0] && l[0] != ' ' && l[0] != ',' && l[0] != '\t') l++; // then advance to next white space
     }
     else if (p[0] == 'H') // we expect a hexadecimal coded RGB color
@@ -1370,12 +1417,12 @@ BOOL LASreaderTXT::check_parse_string(const char* parse_string)
       if (p[0] >= '0' && p[0] <= '9')
       {
         I32 index = (I32)(p[0] - '0');
-        if (index >= header.number_extra_attributes)
+        if (index >= header.number_attributes)
         {
-          fprintf(stderr, "ERROR: extra attribute '%d' was not described.\n", index);
+          fprintf(stderr, "ERROR: extra bytes attribute '%d' was not described.\n", index);
           return FALSE;
         }
-        extra_attribute_array_offsets[index] = header.get_extra_attribute_array_offset(index);
+        attribute_starts[index] = header.get_attribute_start(index);
       }
       else
       {
@@ -1463,19 +1510,19 @@ void LASreaderTXT::populate_bounding_box()
 {
   // compute quantized and then unquantized bounding box
 
-  F64 dequant_min_x = header.get_x(header.get_x(header.min_x));
-  F64 dequant_max_x = header.get_x(header.get_x(header.max_x));
-  F64 dequant_min_y = header.get_y(header.get_y(header.min_y));
-  F64 dequant_max_y = header.get_y(header.get_y(header.max_y));
-  F64 dequant_min_z = header.get_z(header.get_z(header.min_z));
-  F64 dequant_max_z = header.get_z(header.get_z(header.max_z));
+  F64 dequant_min_x = header.get_x(header.get_X(header.min_x));
+  F64 dequant_max_x = header.get_x(header.get_X(header.max_x));
+  F64 dequant_min_y = header.get_y(header.get_Y(header.min_y));
+  F64 dequant_max_y = header.get_y(header.get_Y(header.max_y));
+  F64 dequant_min_z = header.get_z(header.get_Z(header.min_z));
+  F64 dequant_max_z = header.get_z(header.get_Z(header.max_z));
 
   // make sure there is not sign flip
 
   if ((header.min_x > 0) != (dequant_min_x > 0))
   {
     fprintf(stderr, "WARNING: quantization sign flip for min_x from %g to %g.\n", header.min_x, dequant_min_x);
-    fprintf(stderr, "         set scale factor for x coarser than %g with '-scale'\n", header.x_scale_factor);
+    fprintf(stderr, "         set scale factor for x coarser than %g with '-rescale'\n", header.x_scale_factor);
   }
   else
   {
@@ -1484,7 +1531,7 @@ void LASreaderTXT::populate_bounding_box()
   if ((header.max_x > 0) != (dequant_max_x > 0))
   {
     fprintf(stderr, "WARNING: quantization sign flip for max_x from %g to %g.\n", header.max_x, dequant_max_x);
-    fprintf(stderr, "         set scale factor for x coarser than %g with '-scale'\n", header.x_scale_factor);
+    fprintf(stderr, "         set scale factor for x coarser than %g with '-rescale'\n", header.x_scale_factor);
   }
   else
   {
@@ -1493,7 +1540,7 @@ void LASreaderTXT::populate_bounding_box()
   if ((header.min_y > 0) != (dequant_min_y > 0))
   {
     fprintf(stderr, "WARNING: quantization sign flip for min_y from %g to %g.\n", header.min_y, dequant_min_y);
-    fprintf(stderr, "         set scale factor for y coarser than %g with '-scale'\n", header.y_scale_factor);
+    fprintf(stderr, "         set scale factor for y coarser than %g with '-rescale'\n", header.y_scale_factor);
   }
   else
   {
@@ -1502,7 +1549,7 @@ void LASreaderTXT::populate_bounding_box()
   if ((header.max_y > 0) != (dequant_max_y > 0))
   {
     fprintf(stderr, "WARNING: quantization sign flip for max_y from %g to %g.\n", header.max_y, dequant_max_y);
-    fprintf(stderr, "         set scale factor for y coarser than %g with '-scale'\n", header.y_scale_factor);
+    fprintf(stderr, "         set scale factor for y coarser than %g with '-rescale'\n", header.y_scale_factor);
   }
   else
   {
@@ -1511,7 +1558,7 @@ void LASreaderTXT::populate_bounding_box()
   if ((header.min_z > 0) != (dequant_min_z > 0))
   {
     fprintf(stderr, "WARNING: quantization sign flip for min_z from %g to %g.\n", header.min_z, dequant_min_z);
-    fprintf(stderr, "         set scale factor for z coarser than %g with '-scale'\n", header.z_scale_factor);
+    fprintf(stderr, "         set scale factor for z coarser than %g with '-rescale'\n", header.z_scale_factor);
   }
   else
   {
@@ -1520,7 +1567,7 @@ void LASreaderTXT::populate_bounding_box()
   if ((header.max_z > 0) != (dequant_max_z > 0))
   {
     fprintf(stderr, "WARNING: quantization sign flip for max_z from %g to %g.\n", header.max_z, dequant_max_z);
-    fprintf(stderr, "         set scale factor for z coarser than %g with '-scale'\n", header.z_scale_factor);
+    fprintf(stderr, "         set scale factor for z coarser than %g with '-rescale'\n", header.z_scale_factor);
   }
   else
   {

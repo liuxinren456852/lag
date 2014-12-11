@@ -13,11 +13,11 @@
 
   COPYRIGHT:
 
-    (c) 2007-2012, martin isenburg, rapidlasso - tools to catch reality
+    (c) 2007-2012, martin isenburg, rapidlasso - fast tools to catch reality
 
     This is free software; you can redistribute and/or modify it under the
     terms of the GNU Lesser General Licence as published by the Free Software
-    Foundation except for (R). See the LICENSE.txt file for more information.
+    Foundation. See the LICENSE.txt file for more information.
 
     This software is distributed WITHOUT ANY WARRANTY and without even the
     implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
@@ -37,23 +37,28 @@
 #include "lasreader_qfit.hpp"
 #include "lasreader_asc.hpp"
 #include "lasreader_bil.hpp"
+#include "lasreader_dtm.hpp"
 #include "lasreader_txt.hpp"
 
 class LASreaderMerged : public LASreader
 {
 public:
 
-  BOOL add_file_name(const char* file_name);
+  void set_io_ibuffer_size(I32 io_ibuffer_size);
+  inline I32 get_io_ibuffer_size() const { return io_ibuffer_size; };
+  BOOL add_file_name(const CHAR* file_name);
   void set_scale_factor(const F64* scale_factor);
   void set_offset(const F64* offset);
   void set_files_are_flightlines(BOOL files_are_flightlines);
+  void set_apply_file_source_ID(BOOL apply_file_source_ID);
   void set_translate_intensity(F32 translate_intensity);
   void set_scale_intensity(F32 scale_intensity);
   void set_translate_scan_angle(F32 translate_scan_angle);
   void set_scale_scan_angle(F32 scale_scan_angle);
-  void set_parse_string(const char* parse_string);
+  void set_parse_string(const CHAR* parse_string);
   void set_skip_lines(I32 skip_lines);
   void set_populate_header(BOOL populate_header);
+  void set_keep_lastiling(BOOL keep_lastiling);
   BOOL open();
   BOOL reopen();
 
@@ -88,6 +93,7 @@ private:
   LASreaderQFIT* lasreaderqfit;
   LASreaderASC* lasreaderasc;
   LASreaderBIL* lasreaderbil;
+  LASreaderDTM* lasreaderdtm;
   LASreaderTXT* lasreadertxt;
   BOOL point_type_change;
   BOOL point_size_change;
@@ -96,19 +102,21 @@ private:
   F64* scale_factor;
   F64* offset;
   BOOL files_are_flightlines;
+  BOOL apply_file_source_ID;
   F32 translate_intensity;
   F32 scale_intensity;
   F32 translate_scan_angle;
   F32 scale_scan_angle;
-  char* parse_string;
+  CHAR* parse_string;
   I32 skip_lines;
   BOOL populate_header;
+  BOOL keep_lastiling;
   U32 file_name_current;
   U32 file_name_number;
   U32 file_name_allocated;
-  char** file_names;
+  I32 io_ibuffer_size;
+  CHAR** file_names;
   F64* bounding_boxes;
-  U32 inside; // 0 = none, 1 = tile, 2 = circle, 3 = rectangle
 };
 
 #endif

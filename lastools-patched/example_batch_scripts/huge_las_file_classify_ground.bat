@@ -9,16 +9,18 @@ set PATH=%PATH%;C:\lastools\bin;
 
 :: create temporary tile directory
 
+rmdir temp_tiles /s /q
 mkdir temp_tiles
 
 :: create a temporary and reversible tiling with tile size 500 and buffer 50
 
 lastile -i %1 ^
-        -reversible -tile_size 1000 -buffer 50 ^
+        -reversible -tile_size 500 -buffer 50 ^
         -o temp_tiles\tile.laz -olaz
 
 :: create another temporary tile directory
 
+rmdir temp_tiles_ground /s /q
 mkdir temp_tiles_ground
 
 :: run lasground on all temporary tiles on 3 cores

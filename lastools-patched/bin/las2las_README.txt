@@ -4,9 +4,9 @@
 
   reads and writes LIDAR data in LAS/LAZ/ASCII format to filter,
   transform, project, thin, or otherwise modify its contents.
-  Examples are clipping of points to those that lie within a
-  bounding box '-clip 10 10 20 20' or points that are between
-  a certain height '-clip_z 10 100', or dropping points that
+  Examples are keeping only a;; those points that are within a
+  rextangle '-keep_xy 10 10 20 20' or points that are between
+  a certain height '-keep_z 10 100', or dropping points that
   are a certain return '-drop_return 2', that have a scan angle
   above some threshold '-drop_scan_angle_above 5', or below some
   intensity '-drop_intensity_below 15'. Sometimes points are far
@@ -16,7 +16,7 @@
   It is also possible to add missing projection information to
   the LAS/LAZ file or to reproject (using the same ellipsoid)
   for example from latitude/longitude to UTM or the stateplane
-  of Ohio_North.
+  of Ohio_North or to Earth-centered Earth-fixed (ECEF).
 
   Another typical use is extract only first (-first_only) or only
   last (-last_only) returns. Extracting the first return is the
@@ -32,13 +32,14 @@
  
   For updates check the website or join the LAStools mailing list.
 
+  http://rapidlasso.com/LAStools
   http://lastools.org/
   http://groups.google.com/group/lastools/
-  http://twitter.com/lastools/
-  http://facebook.com/lastools/
+  http://twitter.com/LAStools
+  http://facebook.com/LAStools
   http://linkedin.com/groups?gid=4408378
 
-  Martin @lastools
+  Martin @rapidlasso
 
 ****************************************************************
 
@@ -92,9 +93,9 @@ other variations of adding / changing projection information.
 processes all LAS files that match *.las and stores only the last returns
 to a corresponding LAS file called *_1.las (an added '_1' in the name).
 
->> las2las -i *.las -olaz -clip_tile 630000 4830000 10000
+>> las2las -i *.las -olaz -keep_tile 630000 4830000 10000
 
-clips a 10000 by 10000 unit tile with a lower left coordinate of x=630000
+keeps a 10000 by 10000 tile with a lower left coordinate of x=630000
 and y=4830000 out of all LAS files that match *.las and stores each as a
 compressed LAZ file *_1.laz (an added '_1' in the name).
 
@@ -104,22 +105,22 @@ processes all ASCII files that match *.txt, parses them with "xyztiarn",
 keeps all points whose scan angle is between -15 and 15, and stores them
 to a corresponding LAS file called *_1.las (an added '_1' in the name).
 
->> las2las -i in.las -o out.las -clip 630250 4834500 630500 4834750
+>> las2las -i in.las -o out.las -keep_xy 630250 4834500 630500 4834750
 
-clips points of in.las whose double-precision coordinates fall outside
-the box (630250,4834500) to (630500,4834750) and stores surviving points
+keeps only points of in.las whose double-precision coordinates fall inside
+the rectangle (630250,4834500) to (630500,4834750) and stores these points 
 to out.las.
 
->> las2las -lof file_list.txt -merged -o out.laz -clip_circle 630000 4850000 100
+>> las2las -lof file_list.txt -merged -o out.laz -keep_circle 630000 4850000 100
 
-clips points of all files listed in the list of files file_list.txt whose
-double-precision coordinates fall into the circle centered at 630000 4850000
-with radius 100 and stores surviving points compressed to out.laz.
+keeps only those points from all files listed in the list of files file_list.txt
+whose double-precision coordinates fall into the circle centered at 630000 4850000
+with radius 100 and stores these points compressed to out.laz.
 
->> las2las -i in.las -o out.las -clip_z 10 100
+>> las2las -i in.las -o out.las -keep_z 10 100
 
-clips points of in.las whose double-precision elevations falls outside
-the range 10 to 100 and stores surviving points to out.las.
+keeps points of in.las whose double-precision elevations falls inside the
+range 10 to 100 and stores these points to out.las.
 
 >> las2las -i in.las -o out.laz -drop_return 1
 
@@ -127,14 +128,14 @@ drops all points of in.las that are designated first returns by
 the value in their return_number field and stores surviving points
 compressed to out.laz.
 
->> las2las -i in.laz -o out.las -clip_scan_angle_above 15
+>> las2las -i in.laz -o out.las -drop_scan_angle_above 15
 
-clips all points of compressed in.laz whose scan angle is above 15 or
+drops all points of compressed in.laz whose scan angle is above 15 or
 below -15 and stores surviving points compressed to out.laz.
 
->> las2las -i in.las -o out.las -clip_intensity_below 1000 -remove_extra
+>> las2las -i in.las -o out.las -drop_intensity_below 1000 -remove_extra
 
-clips all points of in.las whose intensity is below 1000 and stores
+drops all points of in.las whose intensity is below 1000 and stores
 surviving points to out.las. in addition any additional user data after
 the LAS header or after the VLR block are stripped from the file.
 
@@ -163,23 +164,23 @@ then collecting points until 2000 points were read.
 extracts all points classfied as 2 or 3 from in.las and stores
 them to out.las.
 
->> las2las -i in.las -o out.las -clip_raw 63025000 483450000 63050000 483475000
+>> las2las -i in.las -o out.las -keep_XY 63025000 483450000 63050000 483475000
 
-similar to '-clip' but uses the integer values point.x and point.y
-that the points are stored with for clipping (and not the double
-precision floating point coordinates they represent). clips all the
-points of in.las that have point.x<63025000 or point.y<483450000 or
-point.x>63050000 or point.y>483475000 and stores surviving points to
-out.las (use lasinfo.exe to see the range of point.x and point.y).
+similar to '-keep_xy' but uses the integer values point.X and point.Y
+that the points are stored with for the checks (and not the double
+precision floating point coordinates they represent). drops all the
+points of in.las that have point.X<63025000 or point.Y<483450000 or
+point.X>63050000 or point.Y>483475000 and stores surviving points to
+out.las (use lasinfo.exe to see the range of point.Z and point.Y).
 
->> las2las -i in.las -o out.las -clip_raw_z 1000 4000
+>> las2las -i in.las -o out.las -keep_Z 1000 4000
 
-similar to '-clip_z' but uses the integer values point.z that the
-points are stored with for clipping (and not the double-precision
-floating point coordinates they represent). clips all the points
-of in.las that have point.z<1000 or point.z>4000 and stores all
+similar to '-keep_z' but uses the integer values point.Z that the
+points are stored with for the checks (and not the double-precision
+floating point coordinates they represent). drops all the points
+of in.las that have point.Z<1000 or point.Z>4000 and stores all
 surviving points to out.las (use lasinfo.exe to see the range of
-point.z).
+point.Z).
 
 other commandline arguments are
 
@@ -208,10 +209,12 @@ other commandline arguments are
 -nad83                : use the NAD83 ellipsoid
 -nad27                : use the NAD27 ellipsoid
 -utm 12T              : input is UTM zone 12T 
+-epsg 2972            : input is EPSG code 2972 (e.g. Reseau Geodesique Francais Guyane 1995)
 -sp83 CO_S            : input is state plane NAD83 Colorado South
 -sp27 SC_N            : input is state plane NAD27 South Carolina North 
 -longlat              : input is geometric coordinates in longitude/latitude 
 -latlong              : input is geometric coordinates in latitude/longitude
+-ecef                 : input is geocentric (Earth-centered Earth-fixed)
 -survey_feet          : input uses survey feet
 -feet                 : input uses feet
 -meter                : input uses meter
@@ -219,16 +222,20 @@ other commandline arguments are
 -elevation_feet       : input uses feet for elevation
 -elevation_meter      : input uses meter for elevation
 -target_utm 12T              : output is UTM zone 12T 
+-target_epsg 2193            : output is EPSG code 2193 (e.g. NZGD2000)
 -target_sp83 CO_S            : output is state plane NAD83 Colorado South
 -target_sp27 SC_N            : output is state plane NAD27 South Carolina North 
 -target_longlat              : output is geometric coordinates in longitude/latitude 
 -target_latlong              : output is geometric coordinates in latitude/longitude
+-target_ecef                 : output is geocentric (Earth-centered Earth-fixed)
 -target_survey_feet          : output uses survey feet
 -target_feet                 : output uses feet
 -target_meter                : output uses meter
 -target_elevation_surveyfeet : output uses survey feet for elevation
 -target_elevation_feet       : output uses feet for elevation
 -target_elevation_meter      : output uses meter for elevation
+-target_precision 0.001          : output uses one millimeter resolution for x and y
+-target_elevation_precision 0.02 : output uses two centimeter resolution for z
 
 -tm 609601.22 0.0 meter 33.75 -79 0.99996                 : specifies a transverse mercator projection
 -tm 1804461.942257 0.0 feet 0.8203047 -2.1089395 0.99996
@@ -240,17 +247,24 @@ for more info:
 
 C:\lastools\bin>las2las -h
 Filter points based on their coordinates.
-  -clip_tile 631000 4834000 1000 (ll_x ll_y size)
-  -clip_circle 630250.00 4834750.00 100 (x y radius)
-  -clip_box 620000 4830000 100 621000 4831000 200 (min_x min_y min_z max_x max_y max_z)
-  -clip 630000 4834000 631000 4836000 (min_x min_y max_x max_y)
-  -clip_x_below 630000.50 (min_x)
-  -clip_y_below 4834500.25 (min_y)
-  -clip_x_above 630500.50 (max_x)
-  -clip_y_above 4836000.75 (max_y)
-  -clip_z 11.125 130.725 (min_z, max_z)
-  -clip_z_below 11.125 (min_z)
-  -clip_z_above 130.725 (max_z)
+  -keep_tile 631000 4834000 1000 (ll_x ll_y size)
+  -keep_circle 630250.00 4834750.00 100 (x y radius)
+  -keep_xy 630000 4834000 631000 4836000 (min_x min_y max_x max_y)
+  -drop_xy 630000 4834000 631000 4836000 (min_x min_y max_x max_y)
+  -keep_x 631500.50 631501.00 (min_x max_x)
+  -drop_x 631500.50 631501.00 (min_x max_x)
+  -drop_x_below 630000.50 (min_x)
+  -drop_x_above 630500.50 (max_x)
+  -keep_y 4834500.25 4834550.25 (min_y max_y)
+  -drop_y 4834500.25 4834550.25 (min_y max_y)
+  -drop_y_below 4834500.25 (min_y)
+  -drop_y_above 4836000.75 (max_y)
+  -keep_z 11.125 130.725 (min_z max_z)
+  -drop_z 11.125 130.725 (min_z max_z)
+  -drop_z_below 11.125 (min_z)
+  -drop_z_above 130.725 (max_z)
+  -keep_xyz 620000 4830000 100 621000 4831000 200 (min_x min_y min_z max_x max_y max_z)
+  -drop_xyz 620000 4830000 100 621000 4831000 200 (min_x min_y min_z max_x max_y max_z)
 Filter points based on their return number.
   -first_only -keep_first -drop_first
   -last_only -keep_last -drop_last
@@ -293,6 +307,7 @@ Filter points based on their point source ID.
   -drop_point_source_between 17 21
 Filter points based on their scan angle.
   -keep_scan_angle -15 15
+  -drop_abs_scan_angle_above 15
   -drop_scan_angle_below -15
   -drop_scan_angle_above 15
   -drop_scan_angle_between -25 -23
@@ -302,8 +317,8 @@ Filter points based on their gps time.
   -drop_gps_time_above 130.725
   -drop_gps_time_between 22.0 48.0
 Filter points based on their wavepacket.
-  -keep_wavepacket 1 2
-  -drop_wavepacket 0
+  -keep_wavepacket 0
+  -drop_wavepacket 3
 Filter points with simple thinning.
   -keep_every_nth 2
   -keep_random_fraction 0.1
@@ -314,7 +329,8 @@ Transform coordinates.
   -rotate_xy 15.0 620000 4100000 (angle + origin)
   -translate_xyz 0.5 0.5 0
   -translate_then_scale_y -0.5 1.001
-  -clamp_z_min 70.5
+  -switch_x_y -switch_x_z -switch_y_z
+  -clamp_z_below 70.5
   -clamp_z 70.5 72.5
 Transform raw xyz integers.
   -translate_raw_z 20
@@ -324,20 +340,37 @@ Transform intensity.
   -scale_intensity 2.5
   -translate_intensity 50
   -translate_then_scale_intensity 0.5 3.1
+  -clamp_intensity 0 255
+  -clamp_intensity_above 255
 Transform scan_angle.
   -scale_scan_angle 1.944445
   -translate_scan_angle -5
   -translate_then_scale_scan_angle -0.5 2.1
 Change the return number or return count of points.
   -repair_zero_returns
+  -set_return_number 1
   -change_return_number_from_to 2 1
+  -set_number_of_returns 2
   -change_number_of_returns_from_to 0 2
 Modify the classification.
-  -set_classification_to 2
+  -set_classification 2
   -change_classification_from_to 2 4
+  -classify_z_below_as -5.0 7
+  -classify_z_above_as 70.0 7
+  -classify_z_between_as 2.0 5.0 4
+  -classify_intensity_above_as 200 9
+  -classify_intensity_below_as 30 11
+Change the flags.
+  -set_withheld_flag 0
+  -set_synthetic_flag 1
+  -set_keypoint_flag 0
+Modify the user data.
+  -set_user_data 0
+  -change_user_data_from_to 23 26
 Modify the point source ID.
-  -set_point_source_to 500
+  -set_point_source 500
   -change_point_source_from_to 1023 1024
+  -quantize_Z_into_point_source 200
 Transform gps_time.
   -translate_gps_time 40.50
   -adjusted_to_week
@@ -349,8 +382,8 @@ Supported LAS Inputs
   -i lidar.las
   -i lidar.laz
   -i lidar1.las lidar2.las lidar3.las -merged
-  -i *.las
-  -i flight0??.laz flight1??.laz -single
+  -i *.las - merged
+  -i flight0??.laz flight1??.laz
   -i terrasolid.bin
   -i esri.shp
   -i nasa.qi
@@ -358,7 +391,9 @@ Supported LAS Inputs
   -i lidar.txt -iparse xyzi -itranslate_intensity 1024
   -lof file_list.txt
   -stdin (pipe from stdin)
-  -rescale 0.1 0.1 0.1
+  -rescale 0.01 0.01 0.001
+  -rescale_xy 0.01 0.01
+  -rescale_z 0.01
   -reoffset 600000 4000000 0
 Supported LAS Outputs
   -o lidar.las
@@ -366,10 +401,13 @@ Supported LAS Outputs
   -o xyzta.txt -oparse xyzta (on-the-fly to ASCII)
   -o terrasolid.bin
   -o nasa.qi
+  -odir C:\data\ground (specify output directory)
+  -odix _classified (specify file name appendix)
+  -ocut 2 (cut the last two characters from name)
   -olas -olaz -otxt -obin -oqfit (specify format)
   -stdout (pipe to stdout)
   -nil    (pipe to NULL)
-LAStools (by martin.isenburg@gmail.com) version 120205
+LAStools (by martin@rapidlasso.com) version 140709
 usage:
 las2las -i *.las -utm 13N
 las2las -i *.laz -first_only -olaz
@@ -377,8 +415,8 @@ las2las -i *.las -drop_return 4 5 -olaz
 las2las -latlong -target_utm 12T -i in.las -o out.las
 las2las -point_type 0 -lof file_list.txt -merged -o out.las
 las2las -remove_vlr 2 -scale_rgb_up -i in.las -o out.las
-las2las -i in.las -clip 630000 4834500 630500 4835000 -clip_z 10 100 -o out.las
-las2las -i in.txt -iparse xyzit -clip_circle 630200 4834750 100 -oparse xyzit -o out.txt
+las2las -i in.las -keep_xy 630000 4834500 630500 4835000 -keep_z 10 100 -o out.las
+las2las -i in.txt -iparse xyzit -keep_circle 630200 4834750 100 -oparse xyzit -o out.txt
 las2las -i in.las -keep_scan_angle -15 15 -o out.las
 las2las -i in.las -rescale 0.01 0.01 0.01 -reoffset 0 300000 0 -o out.las
 las2las -i in.las -set_version 1.2 -keep_gpstime 46.5 47.5 -o out.las
@@ -389,4 +427,4 @@ las2las -h
 
 ---------------
 
-if you find bugs let me (martin.isenburg@gmail.com) know.
+if you find bugs let me (martin.isenburg@rapidlasso.com) know.

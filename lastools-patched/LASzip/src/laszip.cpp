@@ -46,8 +46,8 @@ LASzip::LASzip()
   options = 0;
   num_items = 0;
   chunk_size = LASZIP_CHUNK_SIZE_DEFAULT;
-  num_points = -1;
-  num_bytes = -1;
+  number_of_special_evlrs = -1;
+  offset_to_special_evlrs = -1;
   error_string = 0;
   items = 0;
   bytes = 0;
@@ -106,9 +106,9 @@ bool LASzip::unpack(const U8* bytes, const I32 num)
   b += 4;
   chunk_size = *((U32*)b);
   b += 4;
-  num_points = *((I64*)b);
+  number_of_special_evlrs = *((I64*)b);
   b += 8;
-  num_bytes = *((I64*)b);
+  offset_to_special_evlrs = *((I64*)b);
   b += 8;
   num_items = *((U16*)b);
   b += 2;
@@ -160,9 +160,9 @@ bool LASzip::pack(U8*& bytes, I32& num)
   b += 4;
   *((U32*)b) = chunk_size;
   b += 4;
-  *((I64*)b) = num_points;
+  *((I64*)b) = number_of_special_evlrs;
   b += 8;
-  *((I64*)b) = num_bytes;
+  *((I64*)b) = offset_to_special_evlrs;
   b += 8;
   *((U16*)b) = num_items;
   b += 2;
@@ -186,10 +186,17 @@ const char* LASzip::get_error() const
 
 bool LASzip::return_error(const char* error)
 {
+
+#if defined(_MSC_VER) && \
+    (_MSC_FULL_VER >= 150000000)
+#define CopyString _strdup
+#else
+#define CopyString strdup
+#endif
   char err[256];
   sprintf(err, "%s (LASzip v%d.%dr%d)", error, LASZIP_VERSION_MAJOR, LASZIP_VERSION_MINOR, LASZIP_VERSION_REVISION);
   if (error_string) free(error_string);
-  error_string = strdup(err);
+  error_string = CopyString(err);
   return false;
 }
 
@@ -319,6 +326,7 @@ bool LASzip::setup(const U16 num_items, const LASitem* items, const U16 compress
 
 bool LASzip::setup(U16* num_items, LASitem** items, const U8 point_type, const U16 point_size, const U16 compressor)
 {
+  U32 compatible = 0;
   BOOL have_point14 = FALSE;
   BOOL have_gps_time = FALSE;
   BOOL have_rgb = FALSE;
@@ -401,13 +409,27 @@ bool LASzip::setup(U16* num_items, LASitem** items, const U8 point_type, const U
     extra_bytes_number = 0;
   }
 
+  // maybe represent new LAS 1.4 as corresponding LAS 1.3 points plus extra bytes for compatibility
+  if (have_point14  && (compatible != 0))
+  {
+    // we need 4 extra bytes for the new point attributes
+    extra_bytes_number += 4;
+    // we store the GPS time separately
+    have_gps_time = TRUE;
+    // if we have NIR we need another 2 extra bytes 
+    if (have_nir)
+    {
+      extra_bytes_number += 2;
+    }
+  }
+
   // create item description
 
   (*num_items) = 1 + !!(have_gps_time) + !!(have_rgb) + !!(have_wavepacket) + !!(extra_bytes_number);
   (*items) = new LASitem[*num_items];
 
   U16 i = 1;
-  if (have_point14)
+  if (have_point14 && (compatible == 0))
   {
     (*items)[0].type = LASitem::POINT14;
     (*items)[0].size = 30;
@@ -428,7 +450,7 @@ bool LASzip::setup(U16* num_items, LASitem** items, const U8 point_type, const U
   }
   if (have_rgb)
   {
-    if (have_nir)
+    if (have_nir && (compatible == 0))
     {
       (*items)[i].type = LASitem::RGBNIR14;
       (*items)[i].size = 8;
@@ -779,6 +801,9 @@ bool LASitem::is_type(LASitem::Type t) const
   case POINT10:
       if (size != 20) return false;
       break;
+  case POINT14:
+      if (size != 30) return false;
+      break;
   case GPSTIME11:
       if (size != 8) return false;
       break;
@@ -804,6 +829,9 @@ const char* LASitem::get_name() const
   case POINT10:
       return "POINT10";
       break;
+  case POINT14:
+      return "POINT14";
+      break;
   case GPSTIME11:
       return "GPSTIME11";
       break;
@@ -821,4 +849,3 @@ const char* LASitem::get_name() const
   }
   return 0;
 }
-

@@ -5,7 +5,7 @@
   
   CONTENTS:
   
-    Reads an ESCRI ASCII GRID in *.asc format as if it was a LiDAR point cloud.
+    Reads an ESRI ASCII GRID in *.asc format as if it was a LiDAR point cloud.
 
   PROGRAMMERS:
 
@@ -13,17 +13,18 @@
 
   COPYRIGHT:
 
-    (c) 2007-2012, martin isenburg, rapidlasso - tools to catch reality
+    (c) 2007-2013, martin isenburg, rapidlasso - tools to catch reality
 
     This is free software; you can redistribute and/or modify it under the
     terms of the GNU Lesser General Licence as published by the Free Software
-    Foundation except for (R). See the LICENSE.txt file for more information.
+    Foundation. See the LICENSE.txt file for more information.
 
     This software is distributed WITHOUT ANY WARRANTY and without even the
     implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
   
   CHANGE HISTORY:
   
+    06 December 2013 -- option to deal with European '-comma_not_dot' numbers
     26 March 2012 -- created after forgetting my laptop adaptor in the pre-fab
   
 ===============================================================================
@@ -41,7 +42,7 @@ public:
 
   void set_scale_factor(const F64* scale_factor);
   void set_offset(const F64* offset);
-  virtual BOOL open(const char* file_name);
+  virtual BOOL open(const char* file_name, BOOL comma_not_point=FALSE);
 
   I32 get_format() const { return LAS_TOOLS_FORMAT_ASC; };
 
@@ -59,6 +60,7 @@ protected:
 
 private:
   bool piped;
+  BOOL comma_not_point;
   F64* scale_factor;
   F64* offset;
   FILE* file;

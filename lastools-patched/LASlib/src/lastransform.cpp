@@ -13,11 +13,11 @@
 
   COPYRIGHT:
 
-    (c) 2007-2012, martin isenburg, rapidlasso - fast tools to catch reality
+    (c) 2007-2013, martin isenburg, rapidlasso - fast tools to catch reality
 
     This is free software; you can redistribute and/or modify it under the
     terms of the GNU Lesser General Licence as published by the Free Software
-    Foundation except for (R). See the LICENSE.txt file for more information.
+    Foundation. See the LICENSE.txt file for more information.
 
     This software is distributed WITHOUT ANY WARRANTY and without even the
     implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
@@ -151,7 +151,7 @@ public:
   inline void transform(LASpoint* point) const {
     point->set_x((point->get_x()+offset)*scale);
   };
-  LASoperationTranslateThenScaleX(F64 offset, F64 scale_factor) { this->offset = offset; this->scale = scale; };
+  LASoperationTranslateThenScaleX(F64 offset, F64 scale) { this->offset = offset; this->scale = scale; };
 private:
   F64 offset;
   F64 scale;
@@ -252,7 +252,7 @@ public:
   inline const char* name() const { return "translate_raw_x"; };
   inline int get_command(char* string) const { return sprintf(string, "-%s %d ", name(), offset); };
   inline void transform(LASpoint* point) const {
-    point->x += offset;
+    point->set_X(point->get_X() + offset);
   };
   LASoperationTranslateRawX(I32 offset) { this->offset = offset; };
 private:
@@ -265,7 +265,7 @@ public:
   inline const char* name() const { return "translate_raw_y"; };
   inline int get_command(char* string) const { return sprintf(string, "-%s %d ", name(), offset); };
   inline void transform(LASpoint* point) const {
-    point->y += offset;
+    point->set_Y(point->get_Y() + offset);
   };
   LASoperationTranslateRawY(I32 offset) { this->offset = offset; };
 private:
@@ -278,7 +278,7 @@ public:
   inline const char* name() const { return "translate_raw_z"; };
   inline int get_command(char* string) const { return sprintf(string, "-%s %d ", name(), offset); };
   inline void transform(LASpoint* point) const {
-    point->z += offset;
+    point->set_Z(point->get_Z() + offset);
   };
   LASoperationTranslateRawZ(I32 offset) { this->offset = offset; };
 private:
@@ -291,9 +291,9 @@ public:
   inline const char* name() const { return "translate_raw_xyz"; };
   inline int get_command(char* string) const { return sprintf(string, "-%s %d %d %d ", name(), offset[0], offset[1], offset[2]); };
   inline void transform(LASpoint* point) const {
-    point->x += offset[0];
-    point->y += offset[1];
-    point->z += offset[2];
+    point->set_X(point->get_X() + offset[0]);
+    point->set_Y(point->get_Y() + offset[1]);
+    point->set_Z(point->get_Z() + offset[2]);
   };
   LASoperationTranslateRawXYZ(I32 x_offset, I32 y_offset, I32 z_offset) { this->offset[0] = x_offset; this->offset[1] = y_offset; this->offset[2] = z_offset; };
 private:
@@ -306,8 +306,8 @@ public:
   inline const char* name() const { return "clamp_raw_z"; };
   inline int get_command(char* string) const { return sprintf(string, "-%s %d %d ", name(), below, above); };
   inline void transform(LASpoint* point) const {
-    if (point->z < below) point->z = below;
-    else if (point->z > above) point->z = above;
+    if (point->get_Z() < below) point->set_Z(below);
+    else if (point->get_Z() > above) point->set_Z(above);
   };
   LASoperationClampRawZ(I32 below, I32 above) { this->below = below; this->above = above; };
 private:
@@ -355,6 +355,47 @@ public:
 private:
   F32 offset;
   F32 scale;
+};
+
+class LASoperationClampIntensity : public LASoperation
+{
+public:
+  inline const char* name() const { return "clamp_intensity"; };
+  inline int get_command(char* string) const { return sprintf(string, "-%s %u %u ", name(), (U32)below, (U32)above); };
+  inline void transform(LASpoint* point) const {
+    if (point->intensity > above ) point->intensity = above;
+    else if (point->intensity < below ) point->intensity = below;
+  };
+  LASoperationClampIntensity(U16 below, U16 above) { this->below = below; this->above = above; };
+private:
+  U16 below;
+  U16 above;
+};
+
+class LASoperationClampIntensityBelow : public LASoperation
+{
+public:
+  inline const char* name() const { return "clamp_intensity_below"; };
+  inline int get_command(char* string) const { return sprintf(string, "-%s %u ", name(), (U32)below); };
+  inline void transform(LASpoint* point) const {
+    if (point->intensity < below ) point->intensity = below;
+  };
+  LASoperationClampIntensityBelow(U16 below) { this->below = below; };
+private:
+  U16 below;
+};
+
+class LASoperationClampIntensityAbove : public LASoperation
+{
+public:
+  inline const char* name() const { return "clamp_intensity_above"; };
+  inline int get_command(char* string) const { return sprintf(string, "-%s %u ", name(), (U32)above); };
+  inline void transform(LASpoint* point) const {
+    if (point->intensity > above ) point->intensity = above;
+  };
+  LASoperationClampIntensityAbove(U16 above) { this->above = above; };
+private:
+  U16 above;
 };
 
 class LASoperationScaleScanAngle : public LASoperation
@@ -563,6 +604,39 @@ private:
   U8 class_to;
 };
 
+class LASoperationSetWithheldFlag : public LASoperation
+{
+public:
+  inline const char* name() const { return "set_withheld_flag"; };
+  inline int get_command(char* string) const { return sprintf(string, "-%s %d ", name(), (flag ? 1 : 0)); };
+  inline void transform(LASpoint* point) const { point->set_withheld_flag(flag); };
+  LASoperationSetWithheldFlag(U8 flag) { this->flag = flag; };
+private:
+  U8 flag;
+};
+
+class LASoperationSetSyntheticFlag : public LASoperation
+{
+public:
+  inline const char* name() const { return "set_synthetic_flag"; };
+  inline int get_command(char* string) const { return sprintf(string, "-%s %d ", name(), (flag ? 1 : 0)); };
+  inline void transform(LASpoint* point) const { point->set_synthetic_flag(flag); };
+  LASoperationSetSyntheticFlag(U8 flag) { this->flag = flag; };
+private:
+  U8 flag;
+};
+
+class LASoperationSetKeypointFlag : public LASoperation
+{
+public:
+  inline const char* name() const { return "set_keypoint_flag"; };
+  inline int get_command(char* string) const { return sprintf(string, "-%s %d ", name(), (flag ? 1 : 0)); };
+  inline void transform(LASpoint* point) const { point->set_keypoint_flag(flag); };
+  LASoperationSetKeypointFlag(U8 flag) { this->flag = flag; };
+private:
+  U8 flag;
+};
+
 class LASoperationSetUserData : public LASoperation
 {
 public:
@@ -614,7 +688,7 @@ class LASoperationRepairZeroReturns : public LASoperation
 public:
   inline const char* name() const { return "repair_zero_returns"; };
   inline int get_command(char* string) const { return sprintf(string, "-%s ", name()); };
-  inline void transform(LASpoint* point) const { if (point->number_of_returns_of_given_pulse == 0) point->number_of_returns_of_given_pulse = 1; if (point->return_number == 0) point->return_number = 1; };
+  inline void transform(LASpoint* point) const { if (point->number_of_returns == 0) point->number_of_returns = 1; if (point->return_number == 0) point->return_number = 1; };
 };
 
 class LASoperationSetReturnNumber : public LASoperation
@@ -645,7 +719,7 @@ class LASoperationSetNumberOfReturns : public LASoperation
 public:
   inline const char* name() const { return "set_number_of_returns"; };
   inline int get_command(char* string) const { return sprintf(string, "-%s %d ", name(), number_of_returns); };
-  inline void transform(LASpoint* point) const { point->number_of_returns_of_given_pulse = number_of_returns; };
+  inline void transform(LASpoint* point) const { point->number_of_returns = number_of_returns; };
   LASoperationSetNumberOfReturns(U8 number_of_returns) { this->number_of_returns = number_of_returns; };
 private:
   U8 number_of_returns;
@@ -656,7 +730,7 @@ class LASoperationChangeNumberOfReturnsFromTo : public LASoperation
 public:
   inline const char* name() const { return "change_number_of_returns_from_to"; };
   inline int get_command(char* string) const { return sprintf(string, "-%s %d %d ", name(), number_of_returns_from, number_of_returns_to); };
-  inline void transform(LASpoint* point) const { if (point->number_of_returns_of_given_pulse == number_of_returns_from) point->number_of_returns_of_given_pulse = number_of_returns_to; };
+  inline void transform(LASpoint* point) const { if (point->number_of_returns == number_of_returns_from) point->number_of_returns = number_of_returns_to; };
   LASoperationChangeNumberOfReturnsFromTo(U8 number_of_returns_from, U8 number_of_returns_to) { this->number_of_returns_from = number_of_returns_from; this->number_of_returns_to = number_of_returns_to; };
 private:
   U8 number_of_returns_from;
@@ -685,7 +759,6 @@ public:
     I32 secs = week*604800 - 1000000000;
     point->gps_time -= secs;
   };
-  LASoperationConvertAdjustedGpsToWeek(){};
 };
 
 class LASoperationConvertWeekToAdjustedGps : public LASoperation
@@ -721,7 +794,7 @@ class LASoperationSwitchXY : public LASoperation
 public:
   inline const char* name() const { return "switch_x_y"; };
   inline int get_command(char* string) const { return sprintf(string, "-%s ", name()); };
-  inline void transform(LASpoint* point) const { I32 temp = point->x; point->x = point->y; point->y = temp; };
+  inline void transform(LASpoint* point) const { I32 temp = point->get_X(); point->set_X(point->get_Y()); point->set_Y(temp); };
 };
 
 class LASoperationSwitchXZ : public LASoperation
@@ -729,7 +802,7 @@ class LASoperationSwitchXZ : public LASoperation
 public:
   inline const char* name() const { return "switch_x_z"; };
   inline int get_command(char* string) const { return sprintf(string, "-%s ", name()); };
-  inline void transform(LASpoint* point) const { I32 temp = point->x; point->x = point->z; point->z = temp; };
+  inline void transform(LASpoint* point) const { I32 temp = point->get_X(); point->set_X(point->get_Z()); point->set_Z(temp); };
 };
 
 class LASoperationSwitchYZ : public LASoperation
@@ -737,7 +810,7 @@ class LASoperationSwitchYZ : public LASoperation
 public:
   inline const char* name() const { return "switch_y_z"; };
   inline int get_command(char* string) const { return sprintf(string, "-%s ", name()); };
-  inline void transform(LASpoint* point) const { I32 temp = point->y; point->y = point->z; point->z = temp; };
+  inline void transform(LASpoint* point) const { I32 temp = point->get_Y(); point->set_Y(point->get_Z()); point->set_Z(temp); };
 };
 
 class LASoperationFlipWaveformDirection : public LASoperation
@@ -754,6 +827,17 @@ public:
   inline const char* name() const { return "copy_user_data_into_point_source"; };
   inline int get_command(char* string) const { return sprintf(string, "-%s ", name()); };
   inline void transform(LASpoint* point) const { point->point_source_ID = point->user_data; };
+};
+
+class LASoperationQuantizeZintoPointSource : public LASoperation
+{
+public:
+  inline const char* name() const { return "quantize_Z_into_point_source"; };
+  inline int get_command(char* string) const { return sprintf(string, "-%s %d", name(), divided_by); };
+  inline void transform(LASpoint* point) const { point->point_source_ID = U16_CLAMP(point->get_Z()/divided_by); };
+  LASoperationQuantizeZintoPointSource(I32 divided_by=1) { this->divided_by = divided_by; };
+private:
+  I32 divided_by;
 };
 
 void LAStransform::clean()
@@ -778,6 +862,7 @@ void LAStransform::usage() const
   fprintf(stderr,"  -rotate_xy 15.0 620000 4100000 (angle + origin)\n");
   fprintf(stderr,"  -translate_xyz 0.5 0.5 0\n");
   fprintf(stderr,"  -translate_then_scale_y -0.5 1.001\n");
+  fprintf(stderr,"  -switch_x_y -switch_x_z -switch_y_z\n");
   fprintf(stderr,"  -clamp_z_below 70.5\n");
   fprintf(stderr,"  -clamp_z 70.5 72.5\n");
   fprintf(stderr,"Transform raw xyz integers.\n");
@@ -788,6 +873,8 @@ void LAStransform::usage() const
   fprintf(stderr,"  -scale_intensity 2.5\n");
   fprintf(stderr,"  -translate_intensity 50\n");
   fprintf(stderr,"  -translate_then_scale_intensity 0.5 3.1\n");
+  fprintf(stderr,"  -clamp_intensity 0 255\n");
+  fprintf(stderr,"  -clamp_intensity_above 255\n");
   fprintf(stderr,"Transform scan_angle.\n");
   fprintf(stderr,"  -scale_scan_angle 1.944445\n");
   fprintf(stderr,"  -translate_scan_angle -5\n");
@@ -806,12 +893,17 @@ void LAStransform::usage() const
   fprintf(stderr,"  -classify_z_between_as 2.0 5.0 4\n");
   fprintf(stderr,"  -classify_intensity_above_as 200 9\n");
   fprintf(stderr,"  -classify_intensity_below_as 30 11 \n");
+  fprintf(stderr,"Change the flags.\n");
+  fprintf(stderr,"  -set_withheld_flag 0\n");
+  fprintf(stderr,"  -set_synthetic_flag 1\n");
+  fprintf(stderr,"  -set_keypoint_flag 0\n");
   fprintf(stderr,"Modify the user data.\n");
   fprintf(stderr,"  -set_user_data 0\n");
   fprintf(stderr,"  -change_user_data_from_to 23 26\n");
   fprintf(stderr,"Modify the point source ID.\n");
   fprintf(stderr,"  -set_point_source 500\n");
   fprintf(stderr,"  -change_point_source_from_to 1023 1024\n");
+  fprintf(stderr,"  -quantize_Z_into_point_source 200\n");
   fprintf(stderr,"Transform gps_time.\n");
   fprintf(stderr,"  -translate_gps_time 40.50\n");
   fprintf(stderr,"  -adjusted_to_week\n");
@@ -972,7 +1064,7 @@ BOOL LAStransform::parse(int argc, char* argv[])
     {
       if ((i+2) >= argc)
       {
-        fprintf(stderr,"ERROR: '%s' needs 2 arguments: below, above\n", argv[i]);
+        fprintf(stderr,"ERROR: '%s' needs 2 arguments: below above\n", argv[i]);
         return FALSE;
       }
       change_coordinates = TRUE;
@@ -1049,7 +1141,7 @@ BOOL LAStransform::parse(int argc, char* argv[])
     {
       if ((i+2) >= argc)
       {
-        fprintf(stderr,"ERROR: '%s' needs 2 arguments: below, above\n", argv[i]);
+        fprintf(stderr,"ERROR: '%s' needs 2 arguments: below above\n", argv[i]);
         return FALSE;
       }
       change_coordinates = TRUE;
@@ -1085,6 +1177,36 @@ BOOL LAStransform::parse(int argc, char* argv[])
       }
       add_operation(new LASoperationTranslateThenScaleIntensity((F32)atof(argv[i+1]), (F32)atof(argv[i+2])));
       *argv[i]='\0'; *argv[i+1]='\0'; *argv[i+2]='\0'; i+=2; 
+    }
+    else if (strcmp(argv[i],"-clamp_intensity") == 0)
+    {
+      if ((i+2) >= argc)
+      {
+        fprintf(stderr,"ERROR: '%s' needs 2 arguments: below above\n", argv[i]);
+        return FALSE;
+      }
+      add_operation(new LASoperationClampIntensity(U16_CLAMP(atoi(argv[i+1])), U16_CLAMP(atoi(argv[i+2]))));
+      *argv[i]='\0'; *argv[i+1]='\0'; *argv[i+2]='\0'; i+=2; 
+    }
+    else if (strcmp(argv[i],"-clamp_intensity_below") == 0)
+    {
+      if ((i+1) >= argc)
+      {
+        fprintf(stderr,"ERROR: '%s' needs 1 argument: below\n", argv[i]);
+        return FALSE;
+      }
+      add_operation(new LASoperationClampIntensityBelow(U16_CLAMP(atoi(argv[i+1]))));
+      *argv[i]='\0'; *argv[i+1]='\0'; i+=1; 
+    }
+    else if (strcmp(argv[i],"-clamp_intensity_above") == 0)
+    {
+      if ((i+1) >= argc)
+      {
+        fprintf(stderr,"ERROR: '%s' needs 1 argument: above\n", argv[i]);
+        return FALSE;
+      }
+      add_operation(new LASoperationClampIntensityAbove(U16_CLAMP(atoi(argv[i+1]))));
+      *argv[i]='\0'; *argv[i+1]='\0'; i+=1; 
     }
     else if (strcmp(argv[i],"-scale_scan_angle") == 0)
     {
@@ -1186,11 +1308,41 @@ BOOL LAStransform::parse(int argc, char* argv[])
       add_operation(new LASoperationClassifyIntensityAboveAs(U16_CLAMP(atoi(argv[i+1])), (U8)atoi(argv[i+2])));
       *argv[i]='\0'; *argv[i+1]='\0'; *argv[i+2]='\0'; i+=2; 
     }
+    else if (strcmp(argv[i],"-set_withheld_flag") == 0)
+    {
+      if ((i+1) >= argc)
+      {
+        fprintf(stderr,"ERROR: '%s' need 1 argument: value\n", argv[i]);
+        return FALSE;
+      }
+      add_operation(new LASoperationSetWithheldFlag((U8)atoi(argv[i+1])));
+      *argv[i]='\0'; *argv[i+1]='\0'; i+=1; 
+    }
+    else if (strcmp(argv[i],"-set_synthetic_flag") == 0)
+    {
+      if ((i+1) >= argc)
+      {
+        fprintf(stderr,"ERROR: '%s' need 1 argument: value\n", argv[i]);
+        return FALSE;
+      }
+      add_operation(new LASoperationSetSyntheticFlag((U8)atoi(argv[i+1])));
+      *argv[i]='\0'; *argv[i+1]='\0'; i+=1; 
+    }
+    else if (strcmp(argv[i],"-set_keypoint_flag") == 0)
+    {
+      if ((i+1) >= argc)
+      {
+        fprintf(stderr,"ERROR: '%s' need 1 argument: value\n", argv[i]);
+        return FALSE;
+      }
+      add_operation(new LASoperationSetKeypointFlag((U8)atoi(argv[i+1])));
+      *argv[i]='\0'; *argv[i+1]='\0'; i+=1; 
+    }
     else if (strcmp(argv[i],"-set_user_data") == 0)
     {
       if ((i+1) >= argc)
       {
-        fprintf(stderr,"ERROR: '%s' need 1 arguments: value\n", argv[i]);
+        fprintf(stderr,"ERROR: '%s' need 1 argument: value\n", argv[i]);
         return FALSE;
       }
       add_operation(new LASoperationSetUserData((U8)atoi(argv[i+1])));
@@ -1210,7 +1362,7 @@ BOOL LAStransform::parse(int argc, char* argv[])
     {
       if ((i+1) >= argc)
       {
-        fprintf(stderr,"ERROR: '%s' need 1 arguments: psid\n", argv[i]);
+        fprintf(stderr,"ERROR: '%s' need 1 argument: psid\n", argv[i]);
         return FALSE;
       }
       add_operation(new LASoperationSetPointSource((U16)atoi(argv[i+1])));
@@ -1296,12 +1448,12 @@ BOOL LAStransform::parse(int argc, char* argv[])
       add_operation(new LASoperationConvertWeekToAdjustedGps(atoi(argv[i+1])));
       *argv[i]='\0'; *argv[i+1]='\0'; i+=1; 
     }
-    else if (strcmp(argv[i],"-scale_rgb_down") == 0 || strcmp(argv[i],"-scale_rbg_down") == 0)
+    else if (strcmp(argv[i],"-scale_rgb_down") == 0)
     {
       add_operation(new LASoperationScaleRGBdown());
       *argv[i]='\0'; 
     }
-    else if (strcmp(argv[i],"-scale_rgb_up") == 0 || strcmp(argv[i],"-scale_rbg_up") == 0)
+    else if (strcmp(argv[i],"-scale_rgb_up") == 0)
     {
       add_operation(new LASoperationScaleRGBup());
       *argv[i]='\0'; 
@@ -1330,6 +1482,16 @@ BOOL LAStransform::parse(int argc, char* argv[])
     {
       add_operation(new LASoperationCopyUserDataIntoPointSource());
       *argv[i]='\0'; 
+    }
+    else if (strcmp(argv[i],"-quantize_Z_into_point_source") == 0)
+    {
+      if ((i+1) >= argc)
+      {
+        fprintf(stderr,"ERROR: '%s' needs 1 argument: divided_by\n", argv[i]);
+        return FALSE;
+      }
+      add_operation(new LASoperationQuantizeZintoPointSource(atoi(argv[i+1])));
+      *argv[i]='\0'; *argv[i+1]='\0'; i+=1; 
     }
   }
   return TRUE;

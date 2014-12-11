@@ -53,11 +53,11 @@ lasoverlap -i %RAW_FLIGHT_LINES%\*.%RAW_FORMAT% -files_are_flightlines ^
 :: create density grid of flight lines
 
 lasgrid -i %RAW_FLIGHT_LINES%\*.%RAW_FORMAT% -merged -last_only ^
-        -density -step 2 -false -set_min_max 0 8 ^
+        -counter -step 2 -false -set_min_max 0 8 ^
         -o %OUTPUT_FILES%\density_2_pts.png
 
 lasgrid -i %RAW_FLIGHT_LINES%\*.%RAW_FORMAT% -merged -last_only ^
-        -density -step 2 -false -set_min_max 0 16 ^
+        -counter -step 2 -false -set_min_max 0 16 ^
         -o %OUTPUT_FILES%\density_4_pts.png
 
 :: compute a boundary around the merged set of flight lines (also look for holes)
