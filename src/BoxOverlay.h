@@ -1,5 +1,5 @@
 /*
-===============================================================================
+ ===============================================================================
 
  BoxOverlay.h
 
@@ -22,8 +22,8 @@
  You should have received a copy of the GNU General Public License
  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-===============================================================================
-*/
+ ===============================================================================
+ */
 
 #ifndef BOXOVERLAY_H
 #define BOXOVERLAY_H
@@ -37,134 +37,134 @@
 #include "SelectionBox.h"
 
 /*
-===============================================================================
+ ===============================================================================
 
  BoxOverlay - represents a rectangle on the screen.
 
-===============================================================================
-*/
+ ===============================================================================
+ */
 class BoxOverlay
 {
-public:
-   BoxOverlay(Gtk::Label *label, Colour majorcolour, Colour minorcolour);
+   public:
+      BoxOverlay(Gtk::Label *label, Colour majorcolour, Colour minorcolour);
 
-   ~BoxOverlay();
+      ~BoxOverlay();
 
-   // Determine the boundaries from the start and end points of the user's 
-   // clicks and drags and whether to be orthogonal or slanted.
-   void makeboundaries();
+      // Determine the boundaries from the start and end points of the user's 
+      // clicks and drags and whether to be orthogonal or slanted.
+      void makeboundaries();
 
-   //Make the box with one line possibly in a different colour..
-   void makebox(double rmaxz);
+      //Make the box with one line possibly in a different colour..
+      void makebox(double rmaxz);
 
-   //Defines the start point and, initially, the end point.
-   void on_start(Point,double areawidth,double areaheight);
+      //Defines the start point and, initially, the end point.
+      void on_start(Point, double areawidth, double areaheight);
 
-   //Defines the end point.
-   void on_(Point, double areawidth,double areaheight);
-   
-   //Gets the coordinates of the fence (x1, y1, x2, y2)
-   std::tuple<double, double, double, double> get_fence_coordinates();
-   
-   // Moves the box using keyboard input, with different methods depending 
-   // on slantedness and directionality.
-   bool on_key(GdkEventKey* event,double scrollspeed,bool fractionalshift);
+      //Defines the end point.
+      void on_(Point, double areawidth, double areaheight);
 
-   // Directly defines both start and end
-   void directly_place(Point, Point, double areawidth, double areaheight);
+      //Gets the coordinates of the fence (x1, y1, x2, y2)
+      std::tuple<double, double, double, double> get_fence_coordinates();
 
-   //Outputs coordinate information to the label.
-   void drawinfo();
-   
-   //Getters:
+      // Moves the box using keyboard input, with different methods depending 
+      // on slantedness and directionality.
+      bool on_key(GdkEventKey* event, double scrollspeed, bool fractionalshift);
 
-   inline SelectionBox getSelectionBox()
-   {
-      return theBox;
-   }
+      // Directly defines both start and end
+      void directly_place(Point, Point, double areawidth, double areaheight);
 
-   //Setters:
+      //Outputs coordinate information to the label.
+      void drawinfo();
 
-   //Set width of the slanted box.
-   inline void setslantwidth(double slantwidth)
-   {
-      this->slantwidth = slantwidth;
-   }
+      //Getters:
+      
+      inline SelectionBox getSelectionBox()
+      {
+         return theBox;
+      }
+      
+      //Setters:
+      
+      //Set width of the slanted box.
+      inline void setslantwidth(double slantwidth)
+      {
+         this->slantwidth = slantwidth;
+      }
+      
+      inline void setorthogonalshape(bool orthogonalshape)
+      {
+         this->orthogonalshape = orthogonalshape;
+      }
+      
+      inline void setslantedshape(bool slantedshape)
+      {
+         this->slantedshape = slantedshape;
+      }
+      
+      inline void setratio(double ratio)
+      {
+         this->ratio = ratio;
+      }
+      
+      inline void setzoomlevel(double zoomlevel)
+      {
+         this->zoomlevel = zoomlevel;
+      }
+      
+      inline void setcentre(Point c)
+      {
+         centre = c;
+      }
+      
+   private:
+      // This is true if there is a minor colour and means that keyboard movement 
+      // will be forward and backwards and so on respective to looking into the 
+      // box from the line in the minor colour.
+      bool directional;
 
-   inline void setorthogonalshape(bool orthogonalshape)
-   {
-      this->orthogonalshape = orthogonalshape; 
-   }
+      //Determines whether or not to draw an orthogonal box.
+      bool orthogonalshape;
 
-   inline void setslantedshape(bool slantedshape)
-   {
-      this->slantedshape = slantedshape; 
-   }
+      //Determines whether or not to draw a slanted box.
+      bool slantedshape;
 
-   inline void setratio(double ratio)
-   {
-      this->ratio = ratio;
-   }
+      //Label showing the distance, in various dimensions, covered by 
+      //the ruler.
+      Gtk::Label *label;
 
-   inline void setzoomlevel(double zoomlevel)
-   {
-      this->zoomlevel = zoomlevel;
-   }
+      //This is the colour of three of the four lines that make up the box.
+      Colour majorcolour;
 
-   inline void setcentre(Point c)
-   {
-      centre = c;
-   }
+      // This is the colour of the line that, for a profile, represents the 
+      // near clipping plane  and indicates where the profile is used from.
+      Colour minorcolour;
 
-private:
-   // This is true if there is a minor colour and means that keyboard movement 
-   // will be forward and backwards and so on respective to looking into the 
-   // box from the line in the minor colour.
-   bool directional;
+      //These are returned to other objects to define the box.
+      //Store the boundaries of the profile:
+      SelectionBox theBox;
 
-   //Determines whether or not to draw an orthogonal box.
-   bool orthogonalshape;
+      // Stores the number of corners for the profile.
+      // Position variables:
+      // These give the centre of the viewport in image terms, rather than 
+      // screen terms.
+      Point centre;
 
-   //Determines whether or not to draw a slanted box.
-   bool slantedshape;
+      //The width of the slanted box in world units.
+      double slantwidth;
 
-   //Label showing the distance, in various dimensions, covered by 
-   //the ruler.
-   Gtk::Label *label;
+      //The start coordinates in world units.
+      Point start;
 
-   //This is the colour of three of the four lines that make up the box.
-   Colour majorcolour;
+      //The end coordinates in world units.
+      Point end;
 
-   // This is the colour of the line that, for a profile, represents the 
-   // near clipping plane  and indicates where the profile is used from.
-   Colour minorcolour;
+      // This stores the ratio for translating to and from screen scale and 
+      // world scale. It should be set to be the same as in the parent Display 
+      // area.
+      double ratio;
 
-   //These are returned to other objects to define the box.
-   //Store the boundaries of the profile:
-   SelectionBox theBox;
-
-   // Stores the number of corners for the profile.
-   // Position variables:
-   // These give the centre of the viewport in image terms, rather than 
-   // screen terms.
-   Point centre;
-
-   //The width of the slanted box in world units.
-   double slantwidth;
-
-   //The start coordinates in world units.
-   Point start;
-
-   //The end coordinates in world units.
-   Point end;
-
-   // This stores the ratio for translating to and from screen scale and 
-   // world scale. It should be set to be the same as in the parent Display 
-   // area.
-   double ratio;
-
-   // Like the ratio, it should be the same as in the parent Display area. 
-   // It modifies the ratio.
-   double zoomlevel;
+      // Like the ratio, it should be the same as in the parent Display area. 
+      // It modifies the ratio.
+      double zoomlevel;
 };
 #endif
